@@ -2192,68 +2192,7 @@
 
         // Load sample data
         function loadSampleData() {
-            employees = [
-                {
-                    id: 'emp-1001',
-                    name: 'John Smith',
-                    department: 'IT',
-                    position: 'Senior Developer',
-                    email: 'john.smith@example.com',
-                    phone: '9876543210',
-                    location: 'Bangalore',
-                    salary: 85000,
-                    bankName: 'HDFC Bank',
-                    accountNo: '1234567890',
-                    IFSCCode: 'HDFC0001234',
-                    PFID: 'PF12345',
-                    PFUAN: 'UAN12345',
-                    allowances: 5000,
-                    deductions: 2000,
-                    taxIdentification: 'PAN12345',
-                    status: 'active',
-                    joinDate: '2020-05-15'
-                },
-                {
-                    id: 'emp-1002',
-                    name: 'Sarah Johnson',
-                    department: 'HR',
-                    position: 'HR Manager',
-                    email: 'sarah.j@example.com',
-                    phone: '8765432109',
-                    location: 'Mumbai',
-                    salary: 75000,
-                    bankName: 'ICICI Bank',
-                    accountNo: '9876543210',
-                    IFSCCode: 'ICIC0009876',
-                    PFID: 'PF67890',
-                    PFUAN: 'UAN67890',
-                    allowances: 4000,
-                    deductions: 1500,
-                    taxIdentification: 'PAN67890',
-                    status: 'active',
-                    joinDate: '2019-11-22'
-                },
-                {
-                    id: 'emp-1003',
-                    name: 'Michael Chen',
-                    department: 'Finance',
-                    position: 'Accountant',
-                    email: 'michael.c@example.com',
-                    phone: '7654321098',
-                    location: 'Delhi',
-                    salary: 65000,
-                    bankName: 'SBI',
-                    accountNo: '4561237890',
-                    IFSCCode: 'SBIN0004567',
-                    PFID: 'PF45678',
-                    PFUAN: 'UAN45678',
-                    allowances: 3000,
-                    deductions: 1000,
-                    taxIdentification: 'PAN45678',
-                    status: 'active',
-                    joinDate: '2021-02-10'
-                }
-            ];
+            employees = [];
             localStorage.setItem('employees', JSON.stringify(employees));
         }
 
@@ -2772,9 +2711,7 @@
         
         function closeMonthlyRecords() {
             document.getElementById('monthly-records-modal').style.display = 'none';
-        }
-        
-        function downloadMonthlyRecords() {
+        }                                                                                                                                                                                                                                                      function downloadMonthlyRecords() {
             const month = document.getElementById('month-select').value;
             const [year, monthNum] = month.split('-');
             
