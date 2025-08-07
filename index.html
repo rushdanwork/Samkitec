@@ -974,9 +974,15 @@
                         <input type="hidden" id="employeeId">
                         <div class="form-row">
                             <div class="form-group">
+                                <label for="empId">Employee ID *</label>
+                                <input type="text" id="empId" class="form-control" required>
+                            </div>
+                            <div class="form-group">
                                 <label for="empName">Full Name *</label>
                                 <input type="text" id="empName" class="form-control" required>
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empDepartment">Department *</label>
                                 <select id="empDepartment" class="form-control" required>
@@ -987,72 +993,72 @@
                                     <option value="IT">IT</option>
                                 </select>
                             </div>
-                        </div>
-                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empPosition">Position *</label>
                                 <input type="text" id="empPosition" class="form-control" required>
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empEmail">Email *</label>
                                 <input type="email" id="empEmail" class="form-control" required>
                             </div>
-                        </div>
-                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empPhone">Phone *</label>
                                 <input type="tel" id="empPhone" class="form-control" required>
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empLocation">Location *</label>
                                 <input type="text" id="empLocation" class="form-control" required>
                             </div>
-                        </div>
-                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empSalary">Base Salary (₹) *</label>
                                 <input type="number" id="empSalary" class="form-control" required>
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empBankName">Bank Name *</label>
                                 <input type="text" id="empBankName" class="form-control" required>
                             </div>
-                        </div>
-                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empAccountNo">Account No. *</label>
                                 <input type="number" id="empAccountNo" class="form-control" required>
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empIFSCCode">IFSC Code *</label>
                                 <input type="text" id="empIFSCCode" class="form-control" required>
                             </div>
-                        </div>
-                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empPFID">PF ID *</label>
                                 <input type="text" id="empPFID" class="form-control" required>
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empPFUAN">PF UAN *</label>
                                 <input type="text" id="empPFUAN" class="form-control" required>
                             </div>
-                        </div>
-                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empAllowances">Allowances *</label>
                                 <input type="number" id="empAllowances" class="form-control" required>
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empDeductions">Deductions *</label>
                                 <input type="number" id="empDeductions" class="form-control" required>
                             </div>
-                        </div>
-                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empTaxIdentification">Tax identification *</label>
                                 <input type="text" id="empTaxIdentification" class="form-control" required>
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empStatus">Employment Status *</label>
                                 <select id="empStatus" class="form-control" required>
@@ -1060,8 +1066,6 @@
                                     <option value="inactive">Inactive</option>
                                 </select>
                             </div>
-                        </div>
-                        <div class="form-row">
                             <div class="form-group">
                                 <label for="empJoinDate">Join Date *</label>
                                 <input type="date" id="empJoinDate" class="form-control" required>
@@ -1690,6 +1694,7 @@
             form: document.getElementById('employeeForm'),
             formFields: {
                 id: document.getElementById('employeeId'),
+                empId: document.getElementById('empId'),
                 name: document.getElementById('empName'),
                 department: document.getElementById('empDepartment'),
                 position: document.getElementById('empPosition'),
@@ -1970,6 +1975,7 @@
         function showEmployeeForm() {
             employeeElements.form.style.display = 'block';
             employeeElements.formFields.id.value = '';
+            employeeElements.formFields.empId.value = generateEmployeeId();
             employeeElements.formFields.name.focus();
         }
 
@@ -1987,7 +1993,7 @@
             
             // Prepare employee data
             const employeeData = {
-                id: employeeElements.formFields.id.value || generateEmployeeId(),
+                id: employeeElements.formFields.empId.value,
                 name: employeeElements.formFields.name.value.trim(),
                 department: employeeElements.formFields.department.value,
                 position: employeeElements.formFields.position.value.trim(),
@@ -2034,6 +2040,7 @@
         function validateEmployeeForm() {
             let isValid = true;
             const requiredFields = [
+                employeeElements.formFields.empId,
                 employeeElements.formFields.name,
                 employeeElements.formFields.department,
                 employeeElements.formFields.position,
@@ -2089,7 +2096,7 @@
 
         // Generate unique employee ID
         function generateEmployeeId() {
-            return 'emp-' + Date.now().toString().slice(-6);
+            return 'EMP-' + Date.now().toString().slice(-6);
         }
 
         // Render employee table
@@ -2144,6 +2151,7 @@
             const employee = employees.find(emp => emp.id === id);
             if (employee) {
                 employeeElements.formFields.id.value = employee.id;
+                employeeElements.formFields.empId.value = employee.id;
                 employeeElements.formFields.name.value = employee.name;
                 employeeElements.formFields.department.value = employee.department;
                 employeeElements.formFields.position.value = employee.position;
@@ -2180,6 +2188,7 @@
         function filterEmployees() {
             const searchTerm = employeeElements.table.search.value.toLowerCase();
             const filtered = employees.filter(emp => 
+                emp.id.toLowerCase().includes(searchTerm) ||
                 emp.name.toLowerCase().includes(searchTerm) ||
                 (emp.department && emp.department.toLowerCase().includes(searchTerm)) ||
                 (emp.position && emp.position.toLowerCase().includes(searchTerm)) ||
@@ -2565,8 +2574,8 @@
             
             // Filter employees based on search term
             const filteredEmployees = employees.filter(emp => 
-                emp.name.toLowerCase().includes(searchTerm) || 
                 emp.id.toLowerCase().includes(searchTerm) ||
+                emp.name.toLowerCase().includes(searchTerm) || 
                 emp.department.toLowerCase().includes(searchTerm) ||
                 (emp.phone && emp.phone.includes(searchTerm))
             );
