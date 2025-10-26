@@ -955,8 +955,184 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+        import { 
+            getAuth, 
+            createUserWithEmailAndPassword, 
+            signInWithEmailAndPassword, 
+            onAuthStateChanged, 
+            signOut 
+        } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDytXwqVBTKJBBpTymDadTpmt8CR0LQSCM",
+            authDomain: "wagewise-payroll-e6a84.firebaseapp.com",
+            projectId: "wagewise-payroll-e6a84",
+            storageBucket: "wagewise-payroll-e6a84.firebasestorage.app",
+            messagingSenderId: "1077952021877",
+            appId: "1:1077952021877:web:6844674a44973506d2bf3c"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Make Firebase available globally
+        window.firebaseAuth = auth;
+        window.firebaseDb = db;
+
+        // Signup function
+        window.signUp = async function() {
+            const email = document.getElementById("signup-email").value;
+            const password = document.getElementById("signup-password").value;
+            const confirmPassword = document.getElementById("confirm-password").value;
+            
+            // Reset error messages
+            document.getElementById('signup-email-error').style.display = 'none';
+            document.getElementById('signup-password-error').style.display = 'none';
+            document.getElementById('confirm-password-error').style.display = 'none';
+            
+            // Validation
+            let isValid = true;
+            
+            if (!email) {
+                document.getElementById('signup-email-error').textContent = 'Email is required';
+                document.getElementById('signup-email-error').style.display = 'block';
+                isValid = false;
+            } else if (!/^\S+@\S+\.\S+$/.test(email)) {
+                document.getElementById('signup-email-error').textContent = 'Email is invalid';
+                document.getElementById('signup-email-error').style.display = 'block';
+                isValid = false;
+            }
+            
+            if (!password) {
+                document.getElementById('signup-password-error').textContent = 'Password is required';
+                document.getElementById('signup-password-error').style.display = 'block';
+                isValid = false;
+            } else if (password.length < 6) {
+                document.getElementById('signup-password-error').textContent = 'Password must be at least 6 characters';
+                document.getElementById('signup-password-error').style.display = 'block';
+                isValid = false;
+            }
+            
+            if (password !== confirmPassword) {
+                document.getElementById('confirm-password-error').textContent = 'Passwords do not match';
+                document.getElementById('confirm-password-error').style.display = 'block';
+                isValid = false;
+            }
+            
+            if (!isValid) return;
+
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                alert("Account created successfully!");
+                // Switch to login form
+                document.getElementById('signup-form').classList.add('hidden');
+                document.getElementById('login-form').classList.remove('hidden');
+                // Pre-fill email
+                document.getElementById('login-email').value = email;
+            } catch (error) {
+                console.error("Signup error:", error);
+                let errorMessage = "Failed to create account. ";
+                switch(error.code) {
+                    case 'auth/email-already-in-use':
+                        errorMessage += "Email already in use.";
+                        break;
+                    case 'auth/invalid-email':
+                        errorMessage += "Invalid email address.";
+                        break;
+                    case 'auth/weak-password':
+                        errorMessage += "Password is too weak.";
+                        break;
+                    default:
+                        errorMessage += error.message;
+                }
+                alert(errorMessage);
+            }
+        }
+
+        // Login function
+        window.login = async function() {
+            const email = document.getElementById("login-email").value;
+            const password = document.getElementById("login-password").value;
+            
+            // Reset error messages
+            document.getElementById('login-email-error').style.display = 'none';
+            document.getElementById('login-password-error').style.display = 'none';
+            
+            // Validation
+            let isValid = true;
+            
+            if (!email) {
+                document.getElementById('login-email-error').textContent = 'Email is required';
+                document.getElementById('login-email-error').style.display = 'block';
+                isValid = false;
+            }
+            
+            if (!password) {
+                document.getElementById('login-password-error').textContent = 'Password is required';
+                document.getElementById('login-password-error').style.display = 'block';
+                isValid = false;
+            }
+            
+            if (!isValid) return;
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                // Success handled by onAuthStateChanged
+            } catch (error) {
+                console.error("Login error:", error);
+                let errorMessage = "Login failed. ";
+                switch(error.code) {
+                    case 'auth/invalid-email':
+                        errorMessage += "Invalid email address.";
+                        break;
+                    case 'auth/user-disabled':
+                        errorMessage += "User account is disabled.";
+                        break;
+                    case 'auth/user-not-found':
+                        errorMessage += "No account found with this email.";
+                        break;
+                    case 'auth/wrong-password':
+                        errorMessage += "Incorrect password.";
+                        break;
+                    default:
+                        errorMessage += error.message;
+                }
+                alert(errorMessage);
+            }
+        }
+
+        // Logout function
+        window.logout = async function() {
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.error("Logout error:", error);
+            }
+        }
+
+        // Auto login on page load (multi-device persistence)
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                console.log("User logged in:", user.email);
+                document.getElementById('logged-in-user').textContent = user.email;
+                // Hide login page and show application
+                document.getElementById('login-page').style.display = 'none';
+                document.getElementById('app-container').style.display = 'flex';
+                // Initialize the application
+                initializeApplication();
+            } else {
+                console.log("No user logged in.");
+                // Show login page and hide application
+                document.getElementById('login-page').style.display = 'flex';
+                document.getElementById('app-container').style.display = 'none';
+            }
+        });
+    </script>
 </head>
 <body>
     <!-- Login Page (Initially shown) -->
@@ -977,7 +1153,7 @@
                     <div class="error-message" id="login-password-error"></div>
                 </div>
                 <div class="form-group">
-                    <button id="login-btn">Login</button>
+                    <button onclick="login()">Login</button>
                 </div>
                 <div class="toggle-form">
                     Don't have an account? <a id="show-signup">Sign up</a>
@@ -1004,7 +1180,7 @@
                     <div class="error-message" id="confirm-password-error"></div>
                 </div>
                 <div class="form-group">
-                    <button id="signup-btn">Sign Up</button>
+                    <button onclick="signUp()">Sign Up</button>
                 </div>
                 <div class="toggle-form">
                     Already have an account? <a id="show-login">Login</a>
@@ -1047,7 +1223,7 @@
                         <div id="sync-employees-status" class="sync-status synced">
                             <i class="fas fa-check-circle"></i> Synced
                         </div>
-                        <button id="logout-btn" class="btn btn-danger" style="margin-left: 10px; padding: 5px 10px;">
+                        <button onclick="logout()" class="btn btn-danger" style="margin-left: 10px; padding: 5px 10px;">
                             <i class="fas fa-sign-out-alt"></i> Logout
                         </button>                   
                     </div>
@@ -1235,7 +1411,7 @@
                         <div id="sync-payroll-status" class="sync-status synced">
                             <i class="fas fa-check-circle"></i> Synced
                         </div>
-                        <button id="logout-btn" class="btn btn-danger" style="margin-left: 10px; padding: 5px 10px;">
+                        <button onclick="logout()" class="btn btn-danger" style="margin-left: 10px; padding: 5px 10px;">
                             <i class="fas fa-sign-out-alt"></i> Logout
                         </button>
                     </div>
@@ -1582,7 +1758,7 @@
                         <div id="sync-attendance-status" class="sync-status synced">
                             <i class="fas fa-check-circle"></i> Synced
                         </div>
-                        <button id="logout-btn" class="btn btn-danger" style="margin-left: 10px; padding: 5px 10px;">
+                        <button onclick="logout()" class="btn btn-danger" style="margin-left: 10px; padding: 5px 10px;">
                             <i class="fas fa-sign-out-alt"></i> Logout
                         </button>
                     </div>
@@ -1817,149 +1993,6 @@
     </div>
 
     <script>
-       const firebaseConfig = {
-  apiKey: "AIzaSyDytXwqVBTKJBBpTymDadTpmt8CR0LQSCM",
-  authDomain: "wagewise-payroll-e6a84.firebaseapp.com",
-  projectId: "wagewise-payroll-e6a84",
-  storageBucket: "wagewise-payroll-e6a84.firebasestorage.app",
-  messagingSenderId: "1077952021877",
-  appId: "1:1077952021877:web:6844674a44973506d2bf3c"
-};
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-
-        // User Authentication System
-        const users = JSON.parse(localStorage.getItem('users')) || [];
-        let currentUser = null;
-        
-        // DOM Elements for Login/Signup
-        const loginForm = document.getElementById('login-form');
-        const signupForm = document.getElementById('signup-form');
-        const showSignup = document.getElementById('show-signup');
-        const showLogin = document.getElementById('show-login');
-        const loginBtn = document.getElementById('login-btn');
-        const signupBtn = document.getElementById('signup-btn');
-        
-        // Toggle between forms
-        showSignup.addEventListener('click', () => {
-            loginForm.classList.add('hidden');
-            signupForm.classList.remove('hidden');
-        });
-        
-        showLogin.addEventListener('click', () => {
-            signupForm.classList.add('hidden');
-            loginForm.classList.remove('hidden');
-        });
-        
-        // Signup functionality
-        signupBtn.addEventListener('click', () => {
-            const email = document.getElementById('signup-email').value;
-            const password = document.getElementById('signup-password').value;
-            const confirmPassword = document.getElementById('confirm-password').value;
-            
-            // Reset error messages
-            document.getElementById('signup-email-error').style.display = 'none';
-            document.getElementById('signup-password-error').style.display = 'none';
-            document.getElementById('confirm-password-error').style.display = 'none';
-            
-            // Validation
-            let isValid = true;
-            
-            if (!email) {
-                document.getElementById('signup-email-error').textContent = 'Email is required';
-                document.getElementById('signup-email-error').style.display = 'block';
-                isValid = false;
-            } else if (!/^\S+@\S+\.\S+$/.test(email)) {
-                document.getElementById('signup-email-error').textContent = 'Email is invalid';
-                document.getElementById('signup-email-error').style.display = 'block';
-                isValid = false;
-            } else if (users.some(user => user.email === email)) {
-                document.getElementById('signup-email-error').textContent = 'Email already exists';
-                document.getElementById('signup-email-error').style.display = 'block';
-                isValid = false;
-            }
-            
-            if (!password) {
-                document.getElementById('signup-password-error').textContent = 'Password is required';
-                document.getElementById('signup-password-error').style.display = 'block';
-                isValid = false;
-            } else if (password.length < 6) {
-                document.getElementById('signup-password-error').textContent = 'Password must be at least 6 characters';
-                document.getElementById('signup-password-error').style.display = 'block';
-                isValid = false;
-            }
-            
-            if (password !== confirmPassword) {
-                document.getElementById('confirm-password-error').textContent = 'Passwords do not match';
-                document.getElementById('confirm-password-error').style.display = 'block';
-                isValid = false;
-            }
-            
-            if (isValid) {
-                // Save user
-                users.push({ email, password });
-                localStorage.setItem('users', JSON.stringify(users));
-                
-                // Switch to login form
-                signupForm.classList.add('hidden');
-                loginForm.classList.remove('hidden');
-                
-                // Pre-fill email
-                document.getElementById('login-email').value = email;
-                
-                alert('Signup successful! Please login.');
-            }
-        });
-        
-        // Login functionality
-        loginBtn.addEventListener('click', () => {
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            
-            // Reset error messages
-            document.getElementById('login-email-error').style.display = 'none';
-            document.getElementById('login-password-error').style.display = 'none';
-            
-            // Validation
-            let isValid = true;
-            
-            if (!email) {
-                document.getElementById('login-email-error').textContent = 'Email is required';
-                document.getElementById('login-email-error').style.display = 'block';
-                isValid = false;
-            }
-            
-            if (!password) {
-                document.getElementById('login-password-error').textContent = 'Password is required';
-                document.getElementById('login-password-error').style.display = 'block';
-                isValid = false;
-            }
-            
-            if (isValid) {
-                const user = users.find(user => user.email === email);
-                
-                if (!user) {
-                    document.getElementById('login-email-error').textContent = 'Email not found';
-                    document.getElementById('login-email-error').style.display = 'block';
-                } else if (user.password !== password) {
-                    document.getElementById('login-password-error').textContent = 'Incorrect password';
-                    document.getElementById('login-password-error').style.display = 'block';
-                } else {
-                    // Successful login
-                    currentUser = user;
-                    document.getElementById('logged-in-user').textContent = email;
-                    
-                    // Hide login page and show application
-                    document.getElementById('login-page').style.display = 'none';
-                    document.getElementById('app-container').style.display = 'flex';
-                    
-                    // Initialize the application
-                    initializeApplication();
-                }
-            }
-        });
-
         // Employee Data Management
         let employees = JSON.parse(localStorage.getItem('employees')) || [];
         
@@ -2047,7 +2080,7 @@
                 updateSyncStatus('employees', 'syncing');
                 
                 // Get employees from Firebase
-                const snapshot = await db.collection('employees').get();
+                const snapshot = await window.firebaseDb.collection('employees').get();
                 const firebaseEmployees = [];
                 
                 snapshot.forEach(doc => {
@@ -2074,17 +2107,17 @@
 
         async function pushEmployeesToFirebase() {
             try {
-                const batch = db.batch();
+                const batch = window.firebaseDb.batch();
                 
                 // Clear existing employees in Firebase
-                const snapshot = await db.collection('employees').get();
+                const snapshot = await window.firebaseDb.collection('employees').get();
                 snapshot.forEach(doc => {
                     batch.delete(doc.ref);
                 });
                 
                 // Add all local employees to Firebase
                 employees.forEach(employee => {
-                    const docRef = db.collection('employees').doc(employee.id);
+                    const docRef = window.firebaseDb.collection('employees').doc(employee.id);
                     batch.set(docRef, employee);
                 });
                 
@@ -2101,7 +2134,7 @@
                 updateSyncStatus('attendance', 'syncing');
                 
                 // Get attendance from Firebase
-                const snapshot = await db.collection('attendance').get();
+                const snapshot = await window.firebaseDb.collection('attendance').get();
                 const firebaseAttendance = {};
                 
                 snapshot.forEach(doc => {
@@ -2126,17 +2159,17 @@
 
         async function pushAttendanceToFirebase() {
             try {
-                const batch = db.batch();
+                const batch = window.firebaseDb.batch();
                 
                 // Clear existing attendance in Firebase
-                const snapshot = await db.collection('attendance').get();
+                const snapshot = await window.firebaseDb.collection('attendance').get();
                 snapshot.forEach(doc => {
                     batch.delete(doc.ref);
                 });
                 
                 // Add all local attendance records to Firebase
                 Object.keys(attendanceRecords).forEach(date => {
-                    const docRef = db.collection('attendance').doc(date);
+                    const docRef = window.firebaseDb.collection('attendance').doc(date);
                     batch.set(docRef, attendanceRecords[date]);
                 });
                 
@@ -2222,6 +2255,17 @@
             // Sync button
             document.getElementById('sync-employees-btn').addEventListener('click', function() {
                 syncEmployeesWithFirebase();
+            });
+
+            // Toggle between login/signup forms
+            document.getElementById('show-signup').addEventListener('click', () => {
+                document.getElementById('login-form').classList.add('hidden');
+                document.getElementById('signup-form').classList.remove('hidden');
+            });
+            
+            document.getElementById('show-login').addEventListener('click', () => {
+                document.getElementById('signup-form').classList.add('hidden');
+                document.getElementById('login-form').classList.remove('hidden');
             });
         }
 
@@ -3702,23 +3746,6 @@
             
             // Download the file
             XLSX.writeFile(wb, fileName);
-        }
-
-        // Logout functionality
-        document.querySelectorAll('#logout-btn').forEach(btn => {
-            btn.addEventListener('click', logout);
-        });
-
-        function logout() {
-            currentUser = null;
-            // Hide app and show login page
-            document.getElementById('app-container').style.display = 'none';
-            document.getElementById('login-page').style.display = 'flex';
-            // Reset login form
-            document.getElementById('login-form').classList.remove('hidden');
-            document.getElementById('signup-form').classList.add('hidden');
-            document.getElementById('login-email').value = '';
-            document.getElementById('login-password').value = '';
         }
 
         // Make functions available globally
