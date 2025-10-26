@@ -3510,5 +3510,49 @@
         window.editEmployeeAttendance = editEmployeeAttendance;
         window.filterEmployeeDetailsByMonth = filterEmployeeDetailsByMonth;
     </script>
+    <!-- Firebase SDKs -->
+<script type="module">
+  // Import Firebase libraries
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  // Your Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyBxxxxxxx",
+    authDomain: "wagewise-payroll.firebaseapp.com",
+    projectId: "wagewise-payroll",
+    storageBucket: "wagewise-payroll.appspot.com",
+    messagingSenderId: "123456789",
+    appId: "1:123456789:web:abcd1234"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Example: Add employee data
+  async function addEmployee() {
+    await addDoc(collection(db, "employees"), {
+      name: "John Doe",
+      role: "Manager",
+      salary: 55000
+    });
+    alert("Employee added!");
+  }
+
+  // Example: Get employees
+  async function loadEmployees() {
+    const querySnapshot = await getDocs(collection(db, "employees"));
+    querySnapshot.forEach((doc) => {
+      console.log(`${doc.id} => ${JSON.stringify(doc.data())}`);
+    });
+  }
+
+  // Call function for testing
+  addEmployee();
+  loadEmployees();
+</script>
+
 </body>
 </html>
+
