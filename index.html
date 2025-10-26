@@ -2075,7 +2075,35 @@
         }
 
         // Firebase Sync Functions
-        async function syncEmployeesWithFirebase() {
+        // Live-sync employees with Firestore
+async function syncEmployeesWithFirebase() {
+    try {
+        updateSyncStatus('employees', 'syncing');
+
+        const db = window.firebaseDb;
+        const user = window.firebaseAuth.currentUser;
+        if (!user) return;
+
+        const q = db.collection('employees').where('ownerUid', '==', user.uid);
+
+        // Real-time listener (live sync)
+        q.onSnapshot((snapshot) => {
+            const firebaseEmployees = [];
+            snapshot.forEach(doc => firebaseEmployees.push({ id: doc.id, ...doc.data() }));
+            employees = firebaseEmployees;
+            localStorage.setItem('employees', JSON.stringify(employees));
+            renderEmployeeTable();
+            populatePayrollEmployeeDropdown();
+            updateSyncStatus('employees', 'synced');
+            console.log("✅ Live employee sync update!");
+        });
+
+    } catch (error) {
+        console.error('Error syncing employees with Firebase:', error);
+        updateSyncStatus('employees', 'error');
+    }
+}
+ {
             try {
                 updateSyncStatus('employees', 'syncing');
                 
@@ -2129,7 +2157,35 @@
             }
         }
 
-        async function syncAttendanceWithFirebase() {
+        // Live-sync attendance with Firestore
+async function syncAttendanceWithFirebase() {
+    try {
+        updateSyncStatus('attendance', 'syncing');
+
+        const db = window.firebaseDb;
+        const user = window.firebaseAuth.currentUser;
+        if (!user) return;
+
+        const q = db.collection('attendance').where('ownerUid', '==', user.uid);
+
+        // Real-time listener (live sync)
+        q.onSnapshot((snapshot) => {
+            const firebaseAttendance = {};
+            snapshot.forEach(doc => firebaseAttendance[doc.id] = doc.data());
+            attendanceRecords = firebaseAttendance;
+            localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+            renderEmployeeAttendanceList();
+            updateAttendanceSummary();
+            updateSyncStatus('attendance', 'synced');
+            console.log("✅ Live attendance sync update!");
+        });
+
+    } catch (error) {
+        console.error('Error syncing attendance with Firebase:', error);
+        updateSyncStatus('attendance', 'error');
+    }
+}
+ {
             try {
                 updateSyncStatus('attendance', 'syncing');
                 
