@@ -1817,75 +1817,20 @@
     </div>
 
     <script>
-        // Firebase Configuration - REPLACE WITH YOUR ACTUAL CONFIG
-        const firebaseConfig = {
-            apiKey: "AIzaSyBxxxxxxx",
-            authDomain: "wagewise-payroll.firebaseapp.com",
-            projectId: "wagewise-payroll",
-            storageBucket: "wagewise-payroll.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:123456789:web:abcd1234"
-        };
-
+       const firebaseConfig = {
+  apiKey: "AIzaSyDytXwqVBTKJBBpTymDadTpmt8CR0LQSCM",
+  authDomain: "wagewise-payroll-e6a84.firebaseapp.com",
+  projectId: "wagewise-payroll-e6a84",
+  storageBucket: "wagewise-payroll-e6a84.firebasestorage.app",
+  messagingSenderId: "1077952021877",
+  appId: "1:1077952021877:web:6844674a44973506d2bf3c"
+};
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
         // User Authentication System
-        <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-  import { 
-    getAuth, 
-    createUserWithEmailAndPassword, 
-    signInWithEmailAndPassword, 
-    onAuthStateChanged, 
-    signOut 
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-
-  // Signup
-  async function signUp() {
-    const email = document.getElementById("signupEmail").value;
-    const password = document.getElementById("signupPassword").value;
-    await createUserWithEmailAndPassword(auth, email, password);
-    alert("Account created!");
-  }
-
-  // Login
-  async function login() {
-    const email = document.getElementById("loginEmail").value;
-    const password = document.getElementById("loginPassword").value;
-    await signInWithEmailAndPassword(auth, email, password);
-    alert("Logged in!");
-  }
-
-  // Logout
-  async function logout() {
-    await signOut(auth);
-    alert("Logged out!");
-  }
-
-  // Auto login on page load (multi-device persistence)
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      console.log("User logged in:", user.email);
-    } else {
-      console.log("No user logged in.");
-    }
-  });
-</script>
-
+        const users = JSON.parse(localStorage.getItem('users')) || [];
         let currentUser = null;
         
         // DOM Elements for Login/Signup
