@@ -955,184 +955,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-        import { 
-            getAuth, 
-            createUserWithEmailAndPassword, 
-            signInWithEmailAndPassword, 
-            onAuthStateChanged, 
-            signOut 
-        } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDytXwqVBTKJBBpTymDadTpmt8CR0LQSCM",
-            authDomain: "wagewise-payroll-e6a84.firebaseapp.com",
-            projectId: "wagewise-payroll-e6a84",
-            storageBucket: "wagewise-payroll-e6a84.firebasestorage.app",
-            messagingSenderId: "1077952021877",
-            appId: "1:1077952021877:web:6844674a44973506d2bf3c"
-        };
-
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        // Make Firebase available globally
-        window.firebaseAuth = auth;
-        window.firebaseDb = db;
-
-        // Signup function
-        window.signUp = async function() {
-            const email = document.getElementById("signup-email").value;
-            const password = document.getElementById("signup-password").value;
-            const confirmPassword = document.getElementById("confirm-password").value;
-            
-            // Reset error messages
-            document.getElementById('signup-email-error').style.display = 'none';
-            document.getElementById('signup-password-error').style.display = 'none';
-            document.getElementById('confirm-password-error').style.display = 'none';
-            
-            // Validation
-            let isValid = true;
-            
-            if (!email) {
-                document.getElementById('signup-email-error').textContent = 'Email is required';
-                document.getElementById('signup-email-error').style.display = 'block';
-                isValid = false;
-            } else if (!/^\S+@\S+\.\S+$/.test(email)) {
-                document.getElementById('signup-email-error').textContent = 'Email is invalid';
-                document.getElementById('signup-email-error').style.display = 'block';
-                isValid = false;
-            }
-            
-            if (!password) {
-                document.getElementById('signup-password-error').textContent = 'Password is required';
-                document.getElementById('signup-password-error').style.display = 'block';
-                isValid = false;
-            } else if (password.length < 6) {
-                document.getElementById('signup-password-error').textContent = 'Password must be at least 6 characters';
-                document.getElementById('signup-password-error').style.display = 'block';
-                isValid = false;
-            }
-            
-            if (password !== confirmPassword) {
-                document.getElementById('confirm-password-error').textContent = 'Passwords do not match';
-                document.getElementById('confirm-password-error').style.display = 'block';
-                isValid = false;
-            }
-            
-            if (!isValid) return;
-
-            try {
-                await createUserWithEmailAndPassword(auth, email, password);
-                alert("Account created successfully!");
-                // Switch to login form
-                document.getElementById('signup-form').classList.add('hidden');
-                document.getElementById('login-form').classList.remove('hidden');
-                // Pre-fill email
-                document.getElementById('login-email').value = email;
-            } catch (error) {
-                console.error("Signup error:", error);
-                let errorMessage = "Failed to create account. ";
-                switch(error.code) {
-                    case 'auth/email-already-in-use':
-                        errorMessage += "Email already in use.";
-                        break;
-                    case 'auth/invalid-email':
-                        errorMessage += "Invalid email address.";
-                        break;
-                    case 'auth/weak-password':
-                        errorMessage += "Password is too weak.";
-                        break;
-                    default:
-                        errorMessage += error.message;
-                }
-                alert(errorMessage);
-            }
-        }
-
-        // Login function
-        window.login = async function() {
-            const email = document.getElementById("login-email").value;
-            const password = document.getElementById("login-password").value;
-            
-            // Reset error messages
-            document.getElementById('login-email-error').style.display = 'none';
-            document.getElementById('login-password-error').style.display = 'none';
-            
-            // Validation
-            let isValid = true;
-            
-            if (!email) {
-                document.getElementById('login-email-error').textContent = 'Email is required';
-                document.getElementById('login-email-error').style.display = 'block';
-                isValid = false;
-            }
-            
-            if (!password) {
-                document.getElementById('login-password-error').textContent = 'Password is required';
-                document.getElementById('login-password-error').style.display = 'block';
-                isValid = false;
-            }
-            
-            if (!isValid) return;
-
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-                // Success handled by onAuthStateChanged
-            } catch (error) {
-                console.error("Login error:", error);
-                let errorMessage = "Login failed. ";
-                switch(error.code) {
-                    case 'auth/invalid-email':
-                        errorMessage += "Invalid email address.";
-                        break;
-                    case 'auth/user-disabled':
-                        errorMessage += "User account is disabled.";
-                        break;
-                    case 'auth/user-not-found':
-                        errorMessage += "No account found with this email.";
-                        break;
-                    case 'auth/wrong-password':
-                        errorMessage += "Incorrect password.";
-                        break;
-                    default:
-                        errorMessage += error.message;
-                }
-                alert(errorMessage);
-            }
-        }
-
-        // Logout function
-        window.logout = async function() {
-            try {
-                await signOut(auth);
-            } catch (error) {
-                console.error("Logout error:", error);
-            }
-        }
-
-        // Auto login on page load (multi-device persistence)
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                console.log("User logged in:", user.email);
-                document.getElementById('logged-in-user').textContent = user.email;
-                // Hide login page and show application
-                document.getElementById('login-page').style.display = 'none';
-                document.getElementById('app-container').style.display = 'flex';
-                // Initialize the application
-                initializeApplication();
-            } else {
-                console.log("No user logged in.");
-                // Show login page and hide application
-                document.getElementById('login-page').style.display = 'flex';
-                document.getElementById('app-container').style.display = 'none';
-            }
-        });
-    </script>
+    
 </head>
 <body>
     <!-- Login Page (Initially shown) -->
@@ -3765,35 +3588,24 @@
         window.filterEmployeeDetailsByMonth = filterEmployeeDetailsByMonth;
     </script>
 
+
+
+
+
+
+
 <script type="module">
-/* Firebase modular SDK imports */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  onAuthStateChanged,
-  signOut,
-  setPersistence,
-  browserLocalPersistence
+import { 
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
+  onAuthStateChanged, signOut, setPersistence, browserLocalPersistence 
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-import {
-  getFirestore,
-  collection,
-  doc,
-  getDocs,
-  setDoc,
-  deleteDoc,
-  writeBatch,
-  serverTimestamp,
-  query,
-  where,
-  getDoc,
-  orderBy,
-  onSnapshot
+import { 
+  getFirestore, collection, doc, setDoc, getDocs, getDoc, deleteDoc, 
+  query, orderBy, where, writeBatch, serverTimestamp, onSnapshot 
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-/* --- Your Firebase config --- */
+/* Firebase Configuration */
 const firebaseConfig = {
   apiKey: "AIzaSyDytXwqVBTKJBBpTymDadTpmt8CR0LQSCM",
   authDomain: "wagewise-payroll-e6a84.firebaseapp.com",
@@ -3808,185 +3620,127 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-/* Persist auth across sessions */
-await setPersistence(auth, browserLocalPersistence).catch(e => console.warn('setPersistence', e));
+/* Keep login session persistent */
+setPersistence(auth, browserLocalPersistence)
+  .then(() => console.log("Persistence set"))
+  .catch(console.error);
 
-/* Simple helpers (non-intrusive) */
-function _toast(msg, type='info') {
-  try {
-    const id = 'ww_toast_container';
-    let c = document.getElementById(id);
-    if (!c) { c = document.createElement('div'); c.id = id; c.style.position='fixed'; c.style.right='18px'; c.style.top='18px'; c.style.zIndex=9999; document.body.appendChild(c); }
-    const el = document.createElement('div');
-    el.textContent = msg;
-    el.style.marginTop = '8px'; el.style.padding = '8px 12px'; el.style.borderRadius = '8px'; el.style.color = '#fff';
-    el.style.boxShadow = '0 6px 18px rgba(0,0,0,0.08)';
-    el.style.background = type === 'error' ? '#ef4444' : (type === 'success' ? '#10b981' : '#2563eb');
-    c.appendChild(el);
-    setTimeout(()=>{ el.style.opacity = '0'; setTimeout(()=>el.remove(),300); }, 3000);
-  } catch(e) { console.log('toast error', e); }
+/* Toast + Loader helpers */
+function showToast(msg, type='info') {
+  const box = document.createElement('div');
+  Object.assign(box.style, {
+    position:'fixed', top:'20px', right:'20px', background:type==='error'?'#ef4444':(type==='success'?'#10b981':'#2563eb'),
+    color:'#fff', padding:'10px 16px', borderRadius:'8px', zIndex:'9999'
+  });
+  box.innerText = msg;
+  document.body.appendChild(box);
+  setTimeout(()=>box.remove(),3000);
+}
+function showLoader(show=true){
+  let loader = document.getElementById('loader-overlay');
+  if(!loader){
+    loader = document.createElement('div');
+    loader.id = 'loader-overlay';
+    Object.assign(loader.style, {position:'fixed', left:0, top:0, width:'100%', height:'100%', background:'rgba(255,255,255,0.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:'9998'});
+    loader.innerHTML = '<div style="padding:12px 18px;background:white;border-radius:8px;box-shadow:0 0 20px rgba(0,0,0,0.1);font-weight:600;">Working...</div>';
+    document.body.appendChild(loader);
+  }
+  loader.style.display = show?'flex':'none';
 }
 
-function _showLoading(show=true) {
-  try {
-    const id = 'ww_loading_overlay';
-    let o = document.getElementById(id);
-    if (!o) {
-      o = document.createElement('div'); o.id = id;
-      Object.assign(o.style, {position:'fixed',left:0,top:0,width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(255,255,255,0.6)',zIndex:9998});
-      o.innerHTML = '<div style="padding:12px;border-radius:8px;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,0.08);font-weight:600;">Working...</div>';
-      document.body.appendChild(o);
-    }
-    o.style.display = show ? 'flex' : 'none';
-  } catch(e) { console.log(e); }
-}
+/* Firestore path helpers */
+function userEmployees(uid){ return collection(doc(db, "users", uid), "employees"); }
+function userAttendance(uid){ return collection(doc(db, "users", uid), "attendance"); }
 
-/* Attach to existing login/signup buttons if present (non-intrusive) */
-try {
-  const loginBtn = document.getElementById('login-btn');
-  const signupBtn = document.getElementById('signup-btn');
-  const logoutButtons = document.querySelectorAll('#logout-btn');
+/* Auth event binding */
+window.addEventListener("load", () => {
+  const loginBtn = document.getElementById("login-btn");
+  const signupBtn = document.getElementById("signup-btn");
+  const logoutBtns = document.querySelectorAll("#logout-btn");
 
-  if (signupBtn) signupBtn.addEventListener('click', async (ev) => {
-    ev.preventDefault();
-    const email = (document.getElementById('signup-email')||{}).value || '';
-    const password = (document.getElementById('signup-password')||{}).value || '';
-    try { _showLoading(true); await createUserWithEmailAndPassword(auth, email, password); _toast('Signed up & logged in','success'); }
-    catch(err){ console.error(err); _toast(err.message || 'Signup failed','error'); }
-    finally{ _showLoading(false); }
+  if(signupBtn) signupBtn.addEventListener("click", async (e)=>{
+    e.preventDefault();
+    const email = document.getElementById("signup-email")?.value || "";
+    const pass = document.getElementById("signup-password")?.value || "";
+    try{ showLoader(true); await createUserWithEmailAndPassword(auth, email, pass); showToast("Account created!", "success"); }
+    catch(err){ showToast(err.message, "error"); console.error(err); }
+    finally{ showLoader(false); }
   });
 
-  if (loginBtn) loginBtn.addEventListener('click', async (ev) => {
-    ev.preventDefault();
-    const email = (document.getElementById('login-email')||{}).value || '';
-    const password = (document.getElementById('login-password')||{}).value || '';
-    try { _showLoading(true); await signInWithEmailAndPassword(auth, email, password); _toast('Logged in','success'); }
-    catch(err){ console.error(err); _toast(err.message || 'Login failed','error'); }
-    finally{ _showLoading(false); }
+  if(loginBtn) loginBtn.addEventListener("click", async (e)=>{
+    e.preventDefault();
+    const email = document.getElementById("login-email")?.value || "";
+    const pass = document.getElementById("login-password")?.value || "";
+    try{ showLoader(true); await signInWithEmailAndPassword(auth, email, pass); showToast("Logged in!", "success"); }
+    catch(err){ showToast(err.message, "error"); console.error(err); }
+    finally{ showLoader(false); }
   });
 
-  logoutButtons.forEach(b => b.addEventListener('click', async () => {
-    try { await signOut(auth); _toast('Logged out','info'); }
-    catch(e) { console.error('logout', e); _toast('Logout failed','error'); }
+  logoutBtns.forEach(btn => btn.addEventListener("click", async ()=>{
+    try{ await signOut(auth); showToast("Logged out"); }catch(e){ console.error(e); }
   }));
-} catch(e) { console.error('attach auth handlers', e); }
+});
 
-/* Live-sync per-user functions (exposed on window so your existing UI calls continue to work) */
-let _empUnsub = null;
-let _attUnsub = null;
-window._employees_cache = [];
-window._attendance_cache = {};
+/* Real-time sync for per-user data */
+let unsubEmp = null, unsubAtt = null;
 
-async function startLiveSyncEmployees(uid) {
-  try {
-    if (_empUnsub) { _empUnsub(); _empUnsub = null; }
-    const q = query(collection(db, 'employees'), where('ownerUid', '==', uid), orderBy('updatedAt'));
-    _empUnsub = onSnapshot(q, snapshot => {
-      const arr = [];
-      snapshot.forEach(d => arr.push({ id: d.id, ...d.data() }));
-      window._employees_cache = arr;
-      try { if (typeof renderEmployeeTable === 'function') renderEmployeeTable(); } catch(e) { console.error('renderEmployeeTable', e); }
-      try { if (typeof populatePayrollEmployeeDropdown === 'function') populatePayrollEmployeeDropdown(); } catch(e) {}
-    }, err => {
-      console.error('employees onSnapshot', err);
-    });
-  } catch(e) { console.error('startLiveSyncEmployees', e); }
+function listenEmployees(uid){
+  const q = query(userEmployees(uid), orderBy("updatedAt"));
+  unsubEmp = onSnapshot(q, snap=>{
+    const data = [];
+    snap.forEach(doc=>data.push({...doc.data(), id:doc.id}));
+    window._employees_cache = data;
+    if(typeof renderEmployeeTable==="function") renderEmployeeTable();
+  });
+}
+function listenAttendance(uid){
+  const q = query(userAttendance(uid), orderBy("date"));
+  unsubAtt = onSnapshot(q, snap=>{
+    const map={}; snap.forEach(doc=>map[doc.id]=doc.data());
+    window._attendance_cache = map;
+    if(typeof renderEmployeeAttendanceList==="function") renderEmployeeAttendanceList();
+  });
 }
 
-async function startLiveSyncAttendance(uid) {
-  try {
-    if (_attUnsub) { _attUnsub(); _attUnsub = null; }
-    const q = query(collection(db, 'attendance'), where('ownerUid', '==', uid), orderBy('date'));
-    _attUnsub = onSnapshot(q, snapshot => {
-      const map = {};
-      snapshot.forEach(d => map[d.id] = d.data());
-      window._attendance_cache = map;
-      try { if (typeof renderEmployeeAttendanceList === 'function') renderEmployeeAttendanceList(); } catch(e) { console.error('renderEmployeeAttendanceList', e); }
-      try { if (typeof updateAttendanceSummary === 'function') updateAttendanceSummary(); } catch(e) {}
-    }, err => {
-      console.error('attendance onSnapshot', err);
-    });
-  } catch(e) { console.error('startLiveSyncAttendance', e); }
-}
+/* Firestore write functions */
+window.saveEmployeeToFirestore = async function(emp){
+  const u = auth.currentUser; if(!u) return showToast("Login required","error");
+  const ref = doc(userEmployees(u.uid), emp.id || ("EMP"+Math.random().toString(36).substring(2,7)));
+  await setDoc(ref, {...emp, ownerUid:u.uid, updatedAt:serverTimestamp()});
+  showToast("Employee saved","success");
+};
 
-/* Save employee (create/update) */
-async function saveEmployeeToFirestore(employeeData) {
-  const user = auth.currentUser;
-  if (!user) { _toast('Login required','error'); return; }
-  _showLoading(true);
-  try {
-    const id = employeeData.id || ('EMP' + Math.random().toString(36).slice(2,9).toUpperCase());
-    await setDoc(doc(db, 'employees', id), { ...employeeData, ownerUid: user.uid, updatedAt: serverTimestamp() });
-    _toast('Employee saved','success');
-  } catch(e) { console.error('saveEmployeeToFirestore', e); _toast('Save failed','error'); }
-  finally { _showLoading(false); }
-}
+window.deleteEmployeeFromFirestore = async function(id){
+  const u = auth.currentUser; if(!u) return showToast("Login required","error");
+  await deleteDoc(doc(userEmployees(u.uid), id)); showToast("Employee deleted","success");
+};
 
-/* Delete employee */
-async function deleteEmployeeFromFirestore(id) {
-  const user = auth.currentUser;
-  if (!user) { _toast('Login required','error'); return; }
-  _showLoading(true);
-  try {
-    const ref = doc(db, 'employees', id);
-    const snap = await getDoc(ref);
-    if (snap.exists() && snap.data().ownerUid === user.uid) {
-      await deleteDoc(ref);
-      _toast('Employee deleted','success');
-    } else {
-      _toast('Not authorized to delete','error');
-    }
-  } catch(e) { console.error('deleteEmployeeFromFirestore', e); _toast('Delete failed','error'); }
-  finally { _showLoading(false); }
-}
+window.saveSingleAttendanceDate = async function(date, record){
+  const u = auth.currentUser; if(!u) return showToast("Login required","error");
+  await setDoc(doc(userAttendance(u.uid), date), {...record, date, ownerUid:u.uid, updatedAt:serverTimestamp()});
+  showToast("Attendance saved","success");
+};
 
-/* Save attendance */
-async function saveSingleAttendanceDate(date, recordObj) {
-  const user = auth.currentUser;
-  if (!user) { _toast('Login required','error'); return; }
-  _showLoading(true);
-  try {
-    await setDoc(doc(db, 'attendance', date), { ...recordObj, ownerUid: user.uid, date, updatedAt: serverTimestamp() });
-    window._attendance_cache[date] = recordObj;
-    _toast('Attendance saved for ' + date, 'success');
-  } catch(e) { console.error('saveSingleAttendanceDate', e); _toast('Save failed','error'); }
-  finally { _showLoading(false); }
-}
+window.pushAttendanceToFirebase = async function(){
+  const u = auth.currentUser; if(!u) return showToast("Login required","error");
+  const batch = writeBatch(db);
+  const all = window.attendanceRecords || {};
+  for(const d in all){
+    const ref = doc(userAttendance(u.uid), d);
+    batch.set(ref, {...all[d], date:d, ownerUid:u.uid, updatedAt:serverTimestamp()});
+  }
+  await batch.commit();
+  showToast("Attendance synced","success");
+};
 
-/* Push all attendance (batch) */
-async function pushAttendanceToFirebase() {
-  const user = auth.currentUser;
-  if (!user) { _toast('Login required','error'); return; }
-  _showLoading(true);
-  try {
-    const batch = writeBatch(db);
-    const existing = await getDocs(query(collection(db, 'attendance'), where('ownerUid', '==', user.uid)));
-    existing.forEach(s => batch.delete(doc(db, 'attendance', s.id)));
-    Object.keys(window.attendanceRecords || {}).forEach(date => {
-      batch.set(doc(db, 'attendance', date), { ...window.attendanceRecords[date], ownerUid: user.uid, date, updatedAt: serverTimestamp() });
-    });
-    await batch.commit();
-    _toast('Attendance pushed','success');
-  } catch(e) { console.error('pushAttendanceToFirebase', e); _toast('Push failed','error'); }
-  finally { _showLoading(false); }
-}
-
-/* Expose functions for existing UI code */
-window.saveEmployeeToFirestore = saveEmployeeToFirestore;
-window.deleteEmployeeFromFirestore = deleteEmployeeFromFirestore;
-window.saveSingleAttendanceDate = saveSingleAttendanceDate;
-window.pushAttendanceToFirebase = pushAttendanceToFirebase;
-
-/* Start live sync when auth state changes */
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    try { startLiveSyncEmployees(user.uid); } catch(e) {}
-    try { startLiveSyncAttendance(user.uid); } catch(e) {}
-  } else {
-    if (_empUnsub) { _empUnsub(); _empUnsub = null; }
-    if (_attUnsub) { _attUnsub(); _attUnsub = null; }
-    window._employees_cache = [];
-    window._attendance_cache = {};
+/* Auth observer */
+onAuthStateChanged(auth, (user)=>{
+  if(user){
+    listenEmployees(user.uid);
+    listenAttendance(user.uid);
+  }else{
+    if(unsubEmp) unsubEmp();
+    if(unsubAtt) unsubAtt();
   }
 });
 </script>
