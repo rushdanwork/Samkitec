@@ -1296,49 +1296,42 @@
         window.startLiveSyncPayroll = startLiveSyncPayroll;
 
        // ✅ Improved Auth State + Live Sync + UI Initialization
+// ✅ Improved Auth State + Live Sync + UI Initialization
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     console.log("✅ Logged in as:", user.email);
-
-    // Show main app, hide login
-    try { document.getElementById('login-page').style.display = 'none'; } catch(e){}
-    try { document.getElementById('app-container').style.display = 'flex'; } catch(e){}
-
-    // Update username in all top bars
-    try { 
-      document.querySelectorAll('#logged-in-user').forEach(el => el.textContent = user.email);
-    } catch(e){}
-
-    // Start Firestore live listeners
-    try { startLiveSyncEmployees(user.uid); } catch(e){ console.warn('Employees listener error:', e); }
-    try { startLiveSyncAttendance(user.uid); } catch(e){ console.warn('Attendance listener error:', e); }
-    try { startLiveSyncPayroll(user.uid); } catch(e){ console.warn('Payroll listener error:', e); }
-
-    // Wait for listeners to fetch data before rendering UI
-    setTimeout(() => {
-      if (typeof initializeApplication === 'function') {
-        console.log("🚀 Initializing application after Firestore sync...");
-        initializeApplication();
-      }
-    }, 1000);
+    ...
   } else {
-    console.log("🚪 User logged out");
-
-    // Stop Firestore listeners if active
-    if (typeof _empUnsub === 'function') { _empUnsub(); _empUnsub = null; }
-    if (typeof _attUnsub === 'function') { _attUnsub(); _attUnsub = null; }
-    if (typeof _payrollUnsub === 'function') { _payrollUnsub(); _payrollUnsub = null; }
-
-    // Reset local data
-    window.employees = [];
-    window.attendanceRecords = {};
-    window.payrollRecords = [];
-
-    // Show login page again
-    try { document.getElementById('app-container').style.display = 'none'; } catch(e){}
-    try { document.getElementById('login-page').style.display = 'flex'; } catch(e){}
+    ...
   }
 });
+
+
+// 🔍 DEBUG CHECK: Verify Firestore is returning data for this user
+window.debugFirestoreCheck = async function() {
+  const user = auth.currentUser;
+  if (!user) {
+    console.warn("⚠️ No user logged in.");
+    return;
+  }
+
+  console.log("🔎 Checking Firestore data for:", user.email);
+
+  const empSnap = await getDocs(collection(db, 'users', user.uid, 'employees'));
+  console.log(`👥 Employees (${empSnap.size})`);
+  empSnap.forEach(doc => console.log('  •', doc.id, doc.data()));
+
+  const attSnap = await getDocs(collection(db, 'users', user.uid, 'attendance'));
+  console.log(`🗓 Attendance (${attSnap.size})`);
+  attSnap.forEach(doc => console.log('  •', doc.id, doc.data()));
+
+  const paySnap = await getDocs(collection(db, 'users', user.uid, 'payroll'));
+  console.log(`💰 Payroll (${paySnap.size})`);
+  paySnap.forEach(doc => console.log('  •', doc.id, doc.data()));
+
+  console.log("✅ Firestore check complete.");
+};
+</script>
 
     </script>
     <!-- END FIREBASE MODULE -->
@@ -2616,3 +2609,4 @@ onAuthStateChanged(auth, async (user) => {
     </script>
 </body>
 </html>
+
