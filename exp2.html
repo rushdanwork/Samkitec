@@ -1169,72 +1169,156 @@
           }
         }
 
-        async function pushAttendanceToFirebase() {
-          const user = auth.currentUser;
-          if (!user) { _toast('Login required','error'); return; }
-          _showLoading(true);
+        // ✅ UPDATED SYNC FUNCTIONS
+        async function syncEmployeesWithFirebase() {
           try {
-            const batch = writeBatch(db);
-            const existing = await getDocs(query(attendanceColRefFor(user.uid)));
-            existing.forEach(s => batch.delete(doc(db, 'users', user.uid, 'attendance', s.id)));
-            const records = window.attendanceRecords || {};
-            Object.keys(records).forEach(date => {
-              const ref = doc(attendanceColRefFor(user.uid), date);
-              batch.set(ref, { ...records[date], ownerUid: user.uid, date, updatedAt: serverTimestamp() });
-            });
-            await batch.commit();
-            _toast('Attendance pushed','success');
-          } catch (e) {
-            console.error('pushAttendanceToFirebase', e);
-            _toast('Push failed','error');
-          } finally {
-            _showLoading(false);
-          }
-        }
+            updateSyncStatus('employees', 'syncing');
+            const user = auth.currentUser;
+            if (!user) return console.warn('No user for employee sync');
 
-        async function pushPayrollToFirebase() {
-          const user = auth.currentUser;
-          if (!user) { _toast('Login required','error'); return; }
-          _showLoading(true);
-          try {
-            const batch = writeBatch(db);
-            const existing = await getDocs(query(payrollColRefFor(user.uid)));
-            existing.forEach(s => batch.delete(doc(db, 'users', user.uid, 'payroll', s.id)));
-            const records = window.payrollRecords || [];
-            records.forEach(p => {
-              const ref = doc(payrollColRefFor(user.uid), p.id);
-              batch.set(ref, { ...p, ownerUid: user.uid, updatedAt: serverTimestamp() });
-            });
-            await batch.commit();
-            _toast('Payroll pushed','success');
-          } catch (e) {
-            console.error('pushPayrollToFirebase', e);
-            _toast('Payroll push failed','error');
-          } finally {
-            _showLoading(false);
+            const snapshot = await getDocs(collection(db, 'users', user.uid, 'employees'));
+            const firebaseEmployees = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            if (firebaseEmployees.length > 0) {
+              employees = firebaseEmployees;
+              localStorage.setItem('employees', JSON.stringify(employees));
+              renderEmployeeTable();
+            } else {
+              await pushEmployeesToFirebase();
+            }
+            updateSyncStatus('employees', 'synced');
+          } catch (err) {
+            console.error('Error syncing employees with Firebase:', err);
+            updateSyncStatus('employees', 'error');
           }
         }
 
         async function pushEmployeesToFirebase() {
-          const user = auth.currentUser;
-          if (!user) { _toast('Login required','error'); return; }
-          _showLoading(true);
           try {
+            const user = auth.currentUser;
+            if (!user) return console.warn('No user to push employees');
+            updateSyncStatus('employees', 'syncing');
+
+            const userEmployeesRef = collection(db, 'users', user.uid, 'employees');
             const batch = writeBatch(db);
-            const existing = await getDocs(query(employeesColRefFor(user.uid)));
-            existing.forEach(s => batch.delete(doc(db, 'users', user.uid, 'employees', s.id)));
-            const list = window.employees || [];
-            list.forEach(emp => {
-              const ref = doc(employeesColRefFor(user.uid), emp.id);
-              batch.set(ref, { ...emp, ownerUid: user.uid, updatedAt: serverTimestamp() });
+
+            const snapshot = await getDocs(userEmployeesRef);
+            snapshot.forEach(d => batch.delete(doc(db, 'users', user.uid, 'employees', d.id)));
+
+            employees.forEach(emp => {
+              const ref = doc(db, 'users', user.uid, 'employees', emp.id);
+              batch.set(ref, emp);
             });
+
             await batch.commit();
-            _toast('Employees pushed','success');
-          } catch (e) {
-            console.error('pushEmployeesToFirebase', e);
-            _toast('Push failed','error');
-          } finally {
-            _showLoading(false);
+            updateSyncStatus('employees', 'synced');
+            console.log('✅ Employees pushed to Firestore');
+          } catch (err) {
+            console.error('Error pushing employees:', err);
+            updateSyncStatus('employees', 'error');
+          }
+        }
+
+        async function syncAttendanceWithFirebase() {
+          try {
+            updateSyncStatus('attendance', 'syncing');
+            const user = auth.currentUser;
+            if (!user) return console.warn('No user for attendance sync');
+
+            const userAttendanceRef = collection(db, 'users', user.uid, 'attendance');
+            const snapshot = await getDocs(userAttendanceRef);
+
+            const firebaseAttendance = {};
+            snapshot.forEach(d => firebaseAttendance[d.id] = d.data());
+
+            if (Object.keys(firebaseAttendance).length > 0) {
+              attendanceRecords = firebaseAttendance;
+              localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+              renderEmployeeAttendanceList();
+            } else {
+              await pushAttendanceToFirebase();
+            }
+            updateSyncStatus('attendance', 'synced');
+          } catch (err) {
+            console.error('Error syncing attendance with Firebase:', err);
+            updateSyncStatus('attendance', 'error');
+          }
+        }
+
+        async function pushAttendanceToFirebase() {
+          try {
+            const user = auth.currentUser;
+            if (!user) return console.warn('No user to push attendance');
+            updateSyncStatus('attendance', 'syncing');
+
+            const userAttendanceRef = collection(db, 'users', user.uid, 'attendance');
+            const batch = writeBatch(db);
+
+            const snapshot = await getDocs(userAttendanceRef);
+            snapshot.forEach(d => batch.delete(doc(db, 'users', user.uid, 'attendance', d.id)));
+
+            for (const [date, record] of Object.entries(attendanceRecords)) {
+              const ref = doc(db, 'users', user.uid, 'attendance', date);
+              batch.set(ref, record);
+            }
+
+            await batch.commit();
+            updateSyncStatus('attendance', 'synced');
+            console.log('✅ Attendance pushed to Firestore');
+          } catch (err) {
+            console.error('Error pushing attendance:', err);
+            updateSyncStatus('attendance', 'error');
+          }
+        }
+
+        async function syncPayrollWithFirebase() {
+          try {
+            updateSyncStatus('payroll', 'syncing');
+            const user = auth.currentUser;
+            if (!user) return console.warn('No user for payroll sync');
+
+            const userPayrollRef = collection(db, 'users', user.uid, 'payroll');
+            const snapshot = await getDocs(userPayrollRef);
+
+            const firebasePayroll = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (firebasePayroll.length > 0) {
+              payrollRecords = firebasePayroll;
+              localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
+              renderPayrollTable();
+            } else {
+              await pushPayrollToFirebase();
+            }
+
+            updateSyncStatus('payroll', 'synced');
+          } catch (err) {
+            console.error('Error syncing payroll:', err);
+            updateSyncStatus('payroll', 'error');
+          }
+        }
+
+        async function pushPayrollToFirebase() {
+          try {
+            const user = auth.currentUser;
+            if (!user) return console.warn('No user to push payroll');
+            updateSyncStatus('payroll', 'syncing');
+
+            const userPayrollRef = collection(db, 'users', user.uid, 'payroll');
+            const batch = writeBatch(db);
+
+            const snapshot = await getDocs(userPayrollRef);
+            snapshot.forEach(d => batch.delete(doc(db, 'users', user.uid, 'payroll', d.id)));
+
+            payrollRecords.forEach(p => {
+              const ref = doc(db, 'users', user.uid, 'payroll', p.id);
+              batch.set(ref, p);
+            });
+
+            await batch.commit();
+            updateSyncStatus('payroll', 'synced');
+            console.log('✅ Payroll pushed to Firestore');
+          } catch (err) {
+            console.error('Error pushing payroll:', err);
+            updateSyncStatus('payroll', 'error');
           }
         }
 
@@ -1295,44 +1379,78 @@
         window.startLiveSyncAttendance = startLiveSyncAttendance;
         window.startLiveSyncPayroll = startLiveSyncPayroll;
 
-       // ✅ Improved Auth State + Live Sync + UI Initialization
-// ✅ Improved Auth State + Live Sync + UI Initialization
-onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    console.log("✅ Logged in as:", user.email);
-    ...
-  } else {
-    ...
-  }
-});
+        // ✅ UPDATED Auth State Handler
+        onAuthStateChanged(auth, async (user) => {
+          if (user) {
+            console.log("✅ Logged in as:", user.email);
 
+            try { document.getElementById('login-page').style.display = 'none'; } catch(e){}
+            try { document.getElementById('app-container').style.display = 'flex'; } catch(e){}
+            try { document.querySelectorAll('#logged-in-user').forEach(el => el.textContent = user.email); } catch(e){}
 
-// 🔍 DEBUG CHECK: Verify Firestore is returning data for this user
-window.debugFirestoreCheck = async function() {
-  const user = auth.currentUser;
-  if (!user) {
-    console.warn("⚠️ No user logged in.");
-    return;
-  }
+            startLiveSyncEmployees(user.uid);
+            startLiveSyncAttendance(user.uid);
+            startLiveSyncPayroll(user.uid);
 
-  console.log("🔎 Checking Firestore data for:", user.email);
+            setTimeout(() => {
+              if (typeof initializeApplication === 'function') {
+                console.log("🚀 Initializing application after Firestore sync...");
+                initializeApplication();
+              }
+            }, 1000);
+          } else {
+            console.log("🚪 User logged out");
+            if (typeof _empUnsub === 'function') { _empUnsub(); _empUnsub = null; }
+            if (typeof _attUnsub === 'function') { _attUnsub(); _attUnsub = null; }
+            if (typeof _payrollUnsub === 'function') { _payrollUnsub(); _payrollUnsub = null; }
 
-  const empSnap = await getDocs(collection(db, 'users', user.uid, 'employees'));
-  console.log(`👥 Employees (${empSnap.size})`);
-  empSnap.forEach(doc => console.log('  •', doc.id, doc.data()));
+            window.employees = [];
+            window.attendanceRecords = {};
+            window.payrollRecords = [];
+            try { document.getElementById('app-container').style.display = 'none'; } catch(e){}
+            try { document.getElementById('login-page').style.display = 'flex'; } catch(e){}
+          }
+        });
 
-  const attSnap = await getDocs(collection(db, 'users', user.uid, 'attendance'));
-  console.log(`🗓 Attendance (${attSnap.size})`);
-  attSnap.forEach(doc => console.log('  •', doc.id, doc.data()));
+        // 🔍 DEBUG CHECK: Verify Firestore data
+        window.debugFirestoreCheck = async function() {
+          const user = auth.currentUser;
+          if (!user) return console.warn("⚠️ No user logged in.");
+          console.log("🔎 Checking Firestore data for:", user.email);
 
-  const paySnap = await getDocs(collection(db, 'users', user.uid, 'payroll'));
-  console.log(`💰 Payroll (${paySnap.size})`);
-  paySnap.forEach(doc => console.log('  •', doc.id, doc.data()));
+          const empSnap = await getDocs(collection(db, 'users', user.uid, 'employees'));
+          console.log(`👥 Employees (${empSnap.size})`);
+          empSnap.forEach(doc => console.log('  •', doc.id, doc.data()));
 
-  console.log("✅ Firestore check complete.");
-};
+          const attSnap = await getDocs(collection(db, 'users', user.uid, 'attendance'));
+          console.log(`🗓 Attendance (${attSnap.size})`);
+          attSnap.forEach(doc => console.log('  •', doc.id, doc.data()));
+
+          const paySnap = await getDocs(collection(db, 'users', user.uid, 'payroll'));
+          console.log(`💰 Payroll (${paySnap.size})`);
+          paySnap.forEach(doc => console.log('  •', doc.id, doc.data()));
+
+          console.log("✅ Firestore check complete.");
+        };
+
+        // Sync status helper function
+        function updateSyncStatus(type, status) {
+          const element = document.getElementById(`sync-${type}-status`);
+          if (element) {
+            element.className = `sync-status ${status}`;
+            element.innerHTML = status === 'syncing' ? 
+              '<i class="fas fa-sync-alt fa-spin"></i> Syncing...' :
+              status === 'synced' ? 
+              '<i class="fas fa-check-circle"></i> Synced' :
+              '<i class="fas fa-exclamation-triangle"></i> Error';
+          }
+        }
+
+        // Expose sync functions globally
+        window.syncEmployeesWithFirebase = syncEmployeesWithFirebase;
+        window.syncAttendanceWithFirebase = syncAttendanceWithFirebase;
+        window.syncPayrollWithFirebase = syncPayrollWithFirebase;
     </script>
-    <!-- END FIREBASE MODULE -->
 
 </head>
 <body>
@@ -2607,5 +2725,3 @@ window.debugFirestoreCheck = async function() {
     </script>
 </body>
 </html>
-
-
