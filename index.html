@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -42,7 +41,6 @@
         }
 
         /* Login Page Styles */
-
         .login-container {
             font-family: 'Arial', sans-serif;
             background-color: #ffffff;
@@ -170,7 +168,6 @@
         }
 
         /* Sidebar Styles */
-
         .sidebar {
             width: 280px;
             background: linear-gradient(135deg, var(--dark-color) 0%, #343a40 100%);
@@ -244,7 +241,6 @@
         }
 
         /* Main Content Styles */
-
         .main-content {
             flex: 1;
             padding: 30px;
@@ -289,7 +285,6 @@
         }
 
         /* Action Bar */
-
         .action-bar {
             display: flex;
             justify-content: space-between;
@@ -454,7 +449,6 @@
         }
 
         /* Data Table Styles */
-
         .data-table {
             background-color: white;
             border-radius: 12px;
@@ -462,7 +456,7 @@
             overflow: hidden;
             margin-top: 20px;
             overflow-x: auto;
-            -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+            -webkit-overflow-scrolling: touch;
         }
 
         .table-container {
@@ -572,7 +566,6 @@
         }
 
         /* Employee Form Styles */
-
         .form-container {
             background-color: white;
             border-radius: 12px;
@@ -639,7 +632,6 @@
         }
 
         /* Alert/Notification Styles */
-
         .alert {
             padding: 15px 20px;
             border-radius: 8px;
@@ -655,7 +647,6 @@
         }
 
         /* Card Styles */
-
         .card {
             background-color: white;
             border-radius: 12px;
@@ -683,7 +674,6 @@
         }
 
         /* Layout Styles */
-
         .row {
             display: flex;
             flex-wrap: wrap;
@@ -709,7 +699,6 @@
         }
 
         /* Employee Info Container */
-
         .employee-info-container {
             display: flex;
             gap: 20px;
@@ -725,7 +714,6 @@
         }
 
         /* Summary Card Styles */
-
         .summary-card {
             background-color: white;
             border-radius: 12px;
@@ -776,7 +764,6 @@
         }
 
         /* Attendance Summary Styles */
-
         .attendance-summary {
             display: flex;
             justify-content: space-around;
@@ -797,7 +784,6 @@
         }
 
         /* Date Selector */
-
         .date-selector {
             display: flex;
             align-items: center;
@@ -806,7 +792,6 @@
         }
 
         /* Modal Styles */
-
         .modal {
             display: none;
             position: fixed;
@@ -845,24 +830,7 @@
             gap: 10px;
         }
 
-        /* Hide salary summary initially */
-
-        #salarySummarySection {
-            display: none;
-        }
-
-        /* Page Sections */
-
-        .page-section {
-            display: none;
-        }
-
-        .page-section.active {
-            display: block;
-        }
-
         /* Employee Details Modal */
-
         #employee-details-modal {
             display: none;
             position: fixed;
@@ -887,8 +855,21 @@
             box-shadow: var(--card-shadow);
         }
 
-        /* Responsive Styles */
+        /* Hide salary summary initially */
+        #salarySummarySection {
+            display: none;
+        }
 
+        /* Page Sections */
+        .page-section {
+            display: none;
+        }
+
+        .page-section.active {
+            display: block;
+        }
+
+        /* Responsive Styles */
         @media (max-width: 768px) {
             .container {
                 flex-direction: column;
@@ -936,8 +917,7 @@
             }
         }
 
-        /* Firebase Sync Styles - Minimal additions */
-
+        /* Firebase Sync Styles */
         .sync-status {
             display: inline-flex;
             align-items: center;
@@ -975,182 +955,180 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <!-- FIREBASE INITIALIZATION & AUTH (REPLACED - per-user + offline + live sync) -->
+    <!-- FIREBASE INITIALIZATION & AUTH -->
     <script type="module">
-   import { getApps, initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import {
-  getAuth,
-  onAuthStateChanged,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut
-} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-import {
-  getFirestore,
-  enableIndexedDbPersistence,
-  collection,
-  doc,
-  getDocs,
-  setDoc,
-  deleteDoc,
-  writeBatch
-} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { getApps, initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+        import {
+            getAuth,
+            onAuthStateChanged,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import {
+            getFirestore,
+            enableIndexedDbPersistence,
+            collection,
+            doc,
+            getDocs,
+            setDoc,
+            deleteDoc,
+            writeBatch
+        } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-/* --------------------------------------------------------
-   🔹 Initialize Firebase (prevent duplicate initialization)
-   -------------------------------------------------------- */
-const firebaseConfig = {
-  const firebaseConfig = {
-  apiKey: "AIzaSyDytXwqVBTKJBBpTymDadTpmt8CR0LQSCM",
-  authDomain: "wagewise-payroll-e6a84.firebaseapp.com",
-  projectId: "wagewise-payroll-e6a84",
-  storageBucket: "wagewise-payroll-e6a84.firebasestorage.app",
-  messagingSenderId: "1077952021877",
-  appId: "1:1077952021877:web:6844674a44973506d2bf3c"
-};
-};
+        /* --------------------------------------------------------
+           🔹 Initialize Firebase (prevent duplicate initialization)
+           -------------------------------------------------------- */
+        const firebaseConfig = {
+            apiKey: "AIzaSyDytXwqVBTKJBBpTymDadTpmt8CR0LQSCM",
+            authDomain: "wagewise-payroll-e6a84.firebaseapp.com",
+            projectId: "wagewise-payroll-e6a84",
+            storageBucket: "wagewise-payroll-e6a84.firebasestorage.app",
+            messagingSenderId: "1077952021877",
+            appId: "1:1077952021877:web:6844674a44973506d2bf3c"
+        };
 
-const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-window.firebaseAuth = auth;
-window.firebaseDb = db;
+        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        window.firebaseAuth = auth;
+        window.firebaseDb = db;
 
-/* --------------------------------------------------------
-   🔹 Enable Offline Caching
-   -------------------------------------------------------- */
-enableIndexedDbPersistence(db).catch(err => {
-  console.warn(⚠️ Offline persistence error:", err.code);
-});
+        /* --------------------------------------------------------
+           🔹 Enable Offline Caching
+           -------------------------------------------------------- */
+        enableIndexedDbPersistence(db).catch(err => {
+            console.warn("⚠️ Offline persistence error:", err.code);
+        });
 
-/* --------------------------------------------------------
-   🔹 User Authentication
-   -------------------------------------------------------- */
-window.signUp = async function () {
-  const email = document.getElementById("signup-email").value.trim();
-  const password = document.getElementById("signup-password").value.trim();
-  const confirm = document.getElementById("confirm-password").value.trim();
+        /* --------------------------------------------------------
+           🔹 User Authentication
+           -------------------------------------------------------- */
+        window.signUp = async function () {
+            const email = document.getElementById("signup-email").value.trim();
+            const password = document.getElementById("signup-password").value.trim();
+            const confirm = document.getElementById("confirm-password").value.trim();
 
-  if (password !== confirm) return alert("Passwords do not match");
+            if (password !== confirm) return alert("Passwords do not match");
 
-  try {
-    await createUserWithEmailAndPassword(auth, email, password);
-    alert("Account created successfully!");
-  } catch (err) {
-    alert("Sign-up failed: " + err.message);
-  }
-};
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                alert("Account created successfully!");
+            } catch (err) {
+                alert("Sign-up failed: " + err.message);
+            }
+        };
 
-window.login = async function () {
-  const email = document.getElementById("login-email").value.trim();
-  const password = document.getElementById("login-password").value.trim();
+        window.login = async function () {
+            const email = document.getElementById("login-email").value.trim();
+            const password = document.getElementById("login-password").value.trim();
 
-  try {
-    await signInWithEmailAndPassword(auth, email, password);
-  } catch (err) {
-    alert("Login failed: " + err.message);
-  }
-};
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (err) {
+                alert("Login failed: " + err.message);
+            }
+        };
 
-window.logout = async function () {
-  await signOut(auth);
-  document.getElementById("appContainer").style.display = "none";
-  document.getElementById("loginContainer").style.display = "flex";
-};
+        window.logout = async function () {
+            await signOut(auth);
+            document.getElementById("appContainer").style.display = "none";
+            document.getElementById("loginContainer").style.display = "flex";
+        };
 
-/* --------------------------------------------------------
-   🔹 Firestore: Employee CRUD
-   -------------------------------------------------------- */
-window.saveEmployeeToFirestore = async function (emp) {
-  const user = auth.currentUser;
-  if (!user) return console.error("No user logged in");
-  const ref = doc(db, "users", user.uid, "employees", emp.id);
-  await setDoc(ref, emp, { merge: true });
-};
+        /* --------------------------------------------------------
+           🔹 Firestore: Employee CRUD
+           -------------------------------------------------------- */
+        window.saveEmployeeToFirestore = async function (emp) {
+            const user = auth.currentUser;
+            if (!user) return console.error("No user logged in");
+            const ref = doc(db, "users", user.uid, "employees", emp.id);
+            await setDoc(ref, emp, { merge: true });
+        };
 
-window.deleteEmployeeFromFirestore = async function (empId) {
-  const user = auth.currentUser;
-  if (!user) return;
-  const ref = doc(db, "users", user.uid, "employees", empId);
-  await deleteDoc(ref);
-};
+        window.deleteEmployeeFromFirestore = async function (empId) {
+            const user = auth.currentUser;
+            if (!user) return;
+            const ref = doc(db, "users", user.uid, "employees", empId);
+            await deleteDoc(ref);
+        };
 
-window.syncEmployeesWithFirebase = async function () {
-  const user = auth.currentUser;
-  if (!user) return alert("Please login first");
+        window.syncEmployeesWithFirebase = async function () {
+            const user = auth.currentUser;
+            if (!user) return alert("Please login first");
 
-  try {
-    const snapshot = await getDocs(collection(db, "users", user.uid, "employees"));
-    const employees = snapshot.docs.map(d => d.data());
-    localStorage.setItem("employees", JSON.stringify(employees));
-    console.log("✅ Employees synced:", employees.length);
-    document.getElementById("employeesSyncStatus").textContent = "Synced";
-  } catch (err) {
-    console.error("Error syncing employees:", err);
-  }
-};
+            try {
+                const snapshot = await getDocs(collection(db, "users", user.uid, "employees"));
+                const employees = snapshot.docs.map(d => d.data());
+                localStorage.setItem("employees", JSON.stringify(employees));
+                console.log("✅ Employees synced:", employees.length);
+                document.getElementById("employeesSyncStatus").textContent = "Synced";
+            } catch (err) {
+                console.error("Error syncing employees:", err);
+            }
+        };
 
-/* --------------------------------------------------------
-   🔹 Firestore: Attendance
-   -------------------------------------------------------- */
-window.saveSingleAttendanceDate = async function (date, data) {
-  const user = auth.currentUser;
-  if (!user) return;
-  const ref = doc(db, "users", user.uid, "attendance", date);
-  await setDoc(ref, data, { merge: true });
-};
+        /* --------------------------------------------------------
+           🔹 Firestore: Attendance
+           -------------------------------------------------------- */
+        window.saveSingleAttendanceDate = async function (date, data) {
+            const user = auth.currentUser;
+            if (!user) return;
+            const ref = doc(db, "users", user.uid, "attendance", date);
+            await setDoc(ref, data, { merge: true });
+        };
 
-window.syncAttendanceWithFirebase = async function () {
-  const user = auth.currentUser;
-  if (!user) return alert("Please login first");
+        window.syncAttendanceWithFirebase = async function () {
+            const user = auth.currentUser;
+            if (!user) return alert("Please login first");
 
-  try {
-    const snapshot = await getDocs(collection(db, "users", user.uid, "attendance"));
-    const attendance = {};
-    snapshot.forEach(d => (attendance[d.id] = d.data()));
-    localStorage.setItem("attendanceRecords", JSON.stringify(attendance));
-    console.log("✅ Attendance synced:", Object.keys(attendance).length);
-    document.getElementById("attendanceSyncStatus").textContent = "Synced";
-  } catch (err) {
-    console.error("Error syncing attendance:", err);
-  }
-};
+            try {
+                const snapshot = await getDocs(collection(db, "users", user.uid, "attendance"));
+                const attendance = {};
+                snapshot.forEach(d => (attendance[d.id] = d.data()));
+                localStorage.setItem("attendanceRecords", JSON.stringify(attendance));
+                console.log("✅ Attendance synced:", Object.keys(attendance).length);
+                document.getElementById("attendanceSyncStatus").textContent = "Synced";
+            } catch (err) {
+                console.error("Error syncing attendance:", err);
+            }
+        };
 
-/* --------------------------------------------------------
-   🔹 Firestore: Payroll (for backup)
-   -------------------------------------------------------- */
-window.savePayrollToFirestore = async function (data) {
-  const user = auth.currentUser;
-  if (!user) return;
-  const batch = writeBatch(db);
-  const payrollCollection = collection(db, "users", user.uid, "payroll");
+        /* --------------------------------------------------------
+           🔹 Firestore: Payroll (for backup)
+           -------------------------------------------------------- */
+        window.savePayrollToFirestore = async function (data) {
+            const user = auth.currentUser;
+            if (!user) return;
+            const batch = writeBatch(db);
+            const payrollCollection = collection(db, "users", user.uid, "payroll");
 
-  data.forEach(entry => {
-    const ref = doc(payrollCollection, entry.id);
-    batch.set(ref, entry, { merge: true });
-  });
+            data.forEach(entry => {
+                const ref = doc(payrollCollection, entry.id);
+                batch.set(ref, entry, { merge: true });
+            });
 
-  await batch.commit();
-  console.log("✅ Payroll data backed up to Firestore");
-};
+            await batch.commit();
+            console.log("✅ Payroll data backed up to Firestore");
+        };
 
-/* --------------------------------------------------------
-   🔹 Auth State Listener
-   -------------------------------------------------------- */
-onAuthStateChanged(auth, user => {
-  if (user) {
-    document.getElementById("loginContainer").style.display = "none";
-    document.getElementById("appContainer").style.display = "flex";
-    document.getElementById("userEmail").textContent = user.email;
-    console.log("✅ User logged in:", user.email);
-    window.syncEmployeesWithFirebase();
-    window.syncAttendanceWithFirebase();
-  } else {
-    document.getElementById("loginContainer").style.display = "flex";
-    document.getElementById("appContainer").style.display = "none";
-  }
-});
-</script>
+        /* --------------------------------------------------------
+           🔹 Auth State Listener
+           -------------------------------------------------------- */
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                document.getElementById("loginContainer").style.display = "none";
+                document.getElementById("appContainer").style.display = "flex";
+                document.getElementById("userEmail").textContent = user.email;
+                console.log("✅ User logged in:", user.email);
+                window.syncEmployeesWithFirebase();
+                window.syncAttendanceWithFirebase();
+            } else {
+                document.getElementById("loginContainer").style.display = "flex";
+                document.getElementById("appContainer").style.display = "none";
+            }
+        });
+    </script>
 </head>
 <body>
     <!-- Login Container -->
@@ -1208,19 +1186,19 @@ onAuthStateChanged(auth, user => {
                 <h2><i class="fas fa-calculator"></i> PayrollPro</h2>
             </div>
             <div class="sidebar-menu">
-                <a class="menu-item active" onclick="showSection('dashboard')">
+                <a class="menu-item active" onclick="showSection('dashboard', event)">
                     <i class="fas fa-home"></i> Dashboard
                 </a>
-                <a class="menu-item" onclick="showSection('employees')">
+                <a class="menu-item" onclick="showSection('employees', event)">
                     <i class="fas fa-users"></i> Employees
                 </a>
-                <a class="menu-item" onclick="showSection('attendance')">
+                <a class="menu-item" onclick="showSection('attendance', event)">
                     <i class="fas fa-calendar-check"></i> Attendance
                 </a>
-                <a class="menu-item" onclick="showSection('payroll')">
+                <a class="menu-item" onclick="showSection('payroll', event)">
                     <i class="fas fa-file-invoice-dollar"></i> Payroll
                 </a>
-                <a class="menu-item" onclick="showSection('reports')">
+                <a class="menu-item" onclick="showSection('reports', event)">
                     <i class="fas fa-chart-bar"></i> Reports
                 </a>
                 <a class="menu-item" onclick="logout()">
@@ -1568,8 +1546,8 @@ onAuthStateChanged(auth, user => {
     </div>
 
     <!-- Employee Details Modal -->
-    <div id="employee-details-modal">
-        <div id="employee-details-content">
+    <div id="employee-details-modal" class="modal">
+        <div class="modal-content" id="employee-details-content">
             <div class="modal-header">
                 <h2>Employee Details</h2>
                 <button class="btn btn-outline" onclick="closeEmployeeDetails()">Close</button>
@@ -1646,8 +1624,18 @@ onAuthStateChanged(auth, user => {
             });
         }
 
+        // Toggle between login and signup forms
+        function toggleForms() {
+            const loginForm = document.getElementById('login-form');
+            const signupForm = document.getElementById('signup-form');
+            const isLoginHidden = loginForm.classList.contains('hidden');
+            
+            loginForm.classList.toggle('hidden', !isLoginHidden);
+            signupForm.classList.toggle('hidden', isLoginHidden);
+        }
+
         // Section navigation
-        function showSection(sectionId) {
+        function showSection(sectionId, event) {
             // Hide all sections
             document.querySelectorAll('.page-section').forEach(section => {
                 section.classList.remove('active');
@@ -1662,11 +1650,12 @@ onAuthStateChanged(auth, user => {
             document.getElementById(sectionId).classList.add('active');
 
             // Add active class to clicked menu item
-            event.target.classList.add('active');
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
 
             // Update header title
             const headerTitle = document.querySelector('.header h1');
-            const headerIcon = document.querySelector('.header h1 i');
             
             switch(sectionId) {
                 case 'dashboard':
@@ -1688,20 +1677,6 @@ onAuthStateChanged(auth, user => {
                 case 'reports':
                     headerTitle.innerHTML = '<i class="fas fa-chart-bar"></i> Reports & Analytics';
                     break;
-            }
-        }
-
-        // Toggle between login and signup forms
-        function toggleForms() {
-            const loginForm = document.getElementById('login-form');
-            const signupForm = document.getElementById('signup-form');
-            
-            if (loginForm.classList.contains('hidden')) {
-                loginForm.classList.remove('hidden');
-                signupForm.classList.add('hidden');
-            } else {
-                loginForm.classList.add('hidden');
-                signupForm.classList.remove('hidden');
             }
         }
 
@@ -2481,5 +2456,3 @@ onAuthStateChanged(auth, user => {
     </script>
 </body>
 </html>
-
-[file content end]
