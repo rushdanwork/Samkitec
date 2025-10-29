@@ -1,3 +1,5 @@
+[file name]: exp2.html
+[file content begin]
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1227,14 +1229,15 @@
 
             const userAttendanceRef = collection(db, 'users', user.uid, 'attendance');
             const snapshot = await getDocs(userAttendanceRef);
+            const firebaseAttendance = snapshot.docs.map(d => ({ date: d.id, ...d.data() }));
 
-            const firebaseAttendance = {};
-            snapshot.forEach(d => firebaseAttendance[d.id] = d.data());
-
-            if (Object.keys(firebaseAttendance).length > 0) {
-              attendanceRecords = firebaseAttendance;
+            if (firebaseAttendance.length > 0) {
+              attendanceRecords = {};
+              firebaseAttendance.forEach(record => {
+                attendanceRecords[record.date] = record;
+              });
               localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
-              renderEmployeeAttendanceList();
+              renderAttendanceTable();
             } else {
               await pushAttendanceToFirebase();
             }
@@ -1257,10 +1260,10 @@
             const snapshot = await getDocs(userAttendanceRef);
             snapshot.forEach(d => batch.delete(doc(db, 'users', user.uid, 'attendance', d.id)));
 
-            for (const [date, record] of Object.entries(attendanceRecords)) {
+            Object.keys(attendanceRecords).forEach(date => {
               const ref = doc(db, 'users', user.uid, 'attendance', date);
-              batch.set(ref, record);
-            }
+              batch.set(ref, attendanceRecords[date]);
+            });
 
             await batch.commit();
             updateSyncStatus('attendance', 'synced');
@@ -1271,1457 +1274,1398 @@
           }
         }
 
-        async function syncPayrollWithFirebase() {
-          try {
-            updateSyncStatus('payroll', 'syncing');
-            const user = auth.currentUser;
-            if (!user) return console.warn('No user for payroll sync');
-
-            const userPayrollRef = collection(db, 'users', user.uid, 'payroll');
-            const snapshot = await getDocs(userPayrollRef);
-
-            const firebasePayroll = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            if (firebasePayroll.length > 0) {
-              payrollRecords = firebasePayroll;
-              localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
-              renderPayrollTable();
-            } else {
-              await pushPayrollToFirebase();
-            }
-
-            updateSyncStatus('payroll', 'synced');
-          } catch (err) {
-            console.error('Error syncing payroll:', err);
-            updateSyncStatus('payroll', 'error');
-          }
+        function updateSyncStatus(type, status) {
+          const statusEl = document.getElementById(`${type}SyncStatus`);
+          if (!statusEl) return;
+          statusEl.textContent = status === 'syncing' ? 'Syncing...' : status === 'synced' ? 'Synced' : 'Error';
+          statusEl.className = `sync-status ${status}`;
         }
 
-        async function pushPayrollToFirebase() {
-          try {
-            const user = auth.currentUser;
-            if (!user) return console.warn('No user to push payroll');
-            updateSyncStatus('payroll', 'syncing');
-
-            const userPayrollRef = collection(db, 'users', user.uid, 'payroll');
-            const batch = writeBatch(db);
-
-            const snapshot = await getDocs(userPayrollRef);
-            snapshot.forEach(d => batch.delete(doc(db, 'users', user.uid, 'payroll', d.id)));
-
-            payrollRecords.forEach(p => {
-              const ref = doc(db, 'users', user.uid, 'payroll', p.id);
-              batch.set(ref, p);
-            });
-
-            await batch.commit();
-            updateSyncStatus('payroll', 'synced');
-            console.log('✅ Payroll pushed to Firestore');
-          } catch (err) {
-            console.error('Error pushing payroll:', err);
-            updateSyncStatus('payroll', 'error');
-          }
-        }
-
-        // Live sync with onSnapshot
-        let _empUnsub = null;
-        let _attUnsub = null;
-        let _payrollUnsub = null;
-
-        function startLiveSyncEmployees(uid) {
-          if (_empUnsub) { _empUnsub(); _empUnsub = null; }
-          const col = employeesColRefFor(uid);
-          _empUnsub = onSnapshot(col, snapshot => {
-            const arr = [];
-            snapshot.forEach(d => arr.push({ id: d.id, ...d.data() }));
-            window.employees = arr;
-            localStorage.setItem('employees', JSON.stringify(window.employees));
-            try { if (typeof renderEmployeeTable === 'function') renderEmployeeTable(); } catch(e) {}
-            try { if (typeof populatePayrollEmployeeDropdown === 'function') populatePayrollEmployeeDropdown(); } catch(e) {}
-          }, err => {
-            console.error('employees onSnapshot error', err);
-          });
-        }
-
-        function startLiveSyncAttendance(uid) {
-          if (_attUnsub) { _attUnsub(); _attUnsub = null; }
-          const col = attendanceColRefFor(uid);
-          _attUnsub = onSnapshot(col, snapshot => {
-            const map = {};
-            snapshot.forEach(d => { map[d.id] = d.data(); });
-            window.attendanceRecords = map;
-            localStorage.setItem('attendanceRecords', JSON.stringify(window.attendanceRecords));
-            try { if (typeof renderEmployeeAttendanceList === 'function') renderEmployeeAttendanceList(); } catch(e) {}
-          }, err => {
-            console.error('attendance onSnapshot error', err);
-          });
-        }
-
-        function startLiveSyncPayroll(uid) {
-          if (_payrollUnsub) { _payrollUnsub(); _payrollUnsub = null; }
-          const col = payrollColRefFor(uid);
-          _payrollUnsub = onSnapshot(col, snapshot => {
-            const arr = [];
-            snapshot.forEach(d => arr.push({ id: d.id, ...d.data() }));
-            window.payrollRecords = arr;
-            localStorage.setItem('payrollRecords', JSON.stringify(window.payrollRecords));
-            try { if (typeof renderPayrollTable === 'function') renderPayrollTable(); } catch(e) {}
-          }, err => { console.error('payroll onSnapshot', err); });
-        }
-
-        // Preserve original global names
+        // Expose globally
         window.saveEmployeeToFirestore = saveEmployeeToFirestore;
         window.deleteEmployeeFromFirestore = deleteEmployeeFromFirestore;
         window.saveSingleAttendanceDate = saveSingleAttendanceDate;
-        window.pushAttendanceToFirebase = pushAttendanceToFirebase;
-        window.pushPayrollToFirebase = pushPayrollToFirebase;
+        window.syncEmployeesWithFirebase = syncEmployeesWithFirebase;
         window.pushEmployeesToFirebase = pushEmployeesToFirebase;
-        window.startLiveSyncEmployees = startLiveSyncEmployees;
-        window.startLiveSyncAttendance = startLiveSyncAttendance;
-        window.startLiveSyncPayroll = startLiveSyncPayroll;
+        window.syncAttendanceWithFirebase = syncAttendanceWithFirebase;
+        window.pushAttendanceToFirebase = pushAttendanceToFirebase;
 
-        // ✅ UPDATED Auth State Handler
-        onAuthStateChanged(auth, async (user) => {
-          if (user) {
-            console.log("✅ Logged in as:", user.email);
-
-            try { document.getElementById('login-page').style.display = 'none'; } catch(e){}
-            try { document.getElementById('app-container').style.display = 'flex'; } catch(e){}
-            try { document.querySelectorAll('#logged-in-user').forEach(el => el.textContent = user.email); } catch(e){}
-
-            startLiveSyncEmployees(user.uid);
-            startLiveSyncAttendance(user.uid);
-            startLiveSyncPayroll(user.uid);
-
-            setTimeout(() => {
-              if (typeof initializeApplication === 'function') {
-                console.log("🚀 Initializing application after Firestore sync...");
-                initializeApplication();
-              }
-            }, 1000);
-          } else {
-            console.log("🚪 User logged out");
-            if (typeof _empUnsub === 'function') { _empUnsub(); _empUnsub = null; }
-            if (typeof _attUnsub === 'function') { _attUnsub(); _attUnsub = null; }
-            if (typeof _payrollUnsub === 'function') { _payrollUnsub(); _payrollUnsub = null; }
-
-            window.employees = [];
-            window.attendanceRecords = {};
-            window.payrollRecords = [];
-            try { document.getElementById('app-container').style.display = 'none'; } catch(e){}
-            try { document.getElementById('login-page').style.display = 'flex'; } catch(e){}
-          }
+        // Auth state listener
+        onAuthStateChanged(auth, (user) => {
+            const loginContainer = document.getElementById('loginContainer');
+            const appContainer = document.getElementById('appContainer');
+            if (user) {
+                loginContainer.style.display = 'none';
+                appContainer.style.display = 'flex';
+                // Load initial data from Firestore
+                syncEmployeesWithFirebase();
+                syncAttendanceWithFirebase();
+            } else {
+                loginContainer.style.display = 'flex';
+                appContainer.style.display = 'none';
+            }
         });
 
-        // 🔍 DEBUG CHECK: Verify Firestore data
-        window.debugFirestoreCheck = async function() {
-          const user = auth.currentUser;
-          if (!user) return console.warn("⚠️ No user logged in.");
-          console.log("🔎 Checking Firestore data for:", user.email);
+        // Live sync listeners
+        onAuthStateChanged(auth, (user) => {
+          if (user) {
+            const unsubEmployees = onSnapshot(collection(db, 'users', user.uid, 'employees'), (snapshot) => {
+              const firebaseEmployees = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+              if (firebaseEmployees.length > 0) {
+                employees = firebaseEmployees;
+                localStorage.setItem('employees', JSON.stringify(employees));
+                renderEmployeeTable();
+              }
+            });
 
-          const empSnap = await getDocs(collection(db, 'users', user.uid, 'employees'));
-          console.log(`👥 Employees (${empSnap.size})`);
-          empSnap.forEach(doc => console.log('  •', doc.id, doc.data()));
+            const unsubAttendance = onSnapshot(collection(db, 'users', user.uid, 'attendance'), (snapshot) => {
+              const firebaseAttendance = snapshot.docs.map(d => ({ date: d.id, ...d.data() }));
+              attendanceRecords = {};
+              firebaseAttendance.forEach(record => {
+                attendanceRecords[record.date] = record;
+              });
+              localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+              renderAttendanceTable();
+            });
 
-          const attSnap = await getDocs(collection(db, 'users', user.uid, 'attendance'));
-          console.log(`🗓 Attendance (${attSnap.size})`);
-          attSnap.forEach(doc => console.log('  •', doc.id, doc.data()));
-
-          const paySnap = await getDocs(collection(db, 'users', user.uid, 'payroll'));
-          console.log(`💰 Payroll (${paySnap.size})`);
-          paySnap.forEach(doc => console.log('  •', doc.id, doc.data()));
-
-          console.log("✅ Firestore check complete.");
-        };
-
-        // Sync status helper function
-        function updateSyncStatus(type, status) {
-          const element = document.getElementById(`sync-${type}-status`);
-          if (element) {
-            element.className = `sync-status ${status}`;
-            element.innerHTML = status === 'syncing' ? 
-              '<i class="fas fa-sync-alt fa-spin"></i> Syncing...' :
-              status === 'synced' ? 
-              '<i class="fas fa-check-circle"></i> Synced' :
-              '<i class="fas fa-exclamation-triangle"></i> Error';
+            // Cleanup on logout
+            window.firebaseUnsubscribers = [unsubEmployees, unsubAttendance];
+          } else {
+            if (window.firebaseUnsubscribers) {
+              window.firebaseUnsubscribers.forEach(unsub => unsub());
+              window.firebaseUnsubscribers = null;
+            }
           }
-        }
-
-        // Expose sync functions globally
-        window.syncEmployeesWithFirebase = syncEmployeesWithFirebase;
-        window.syncAttendanceWithFirebase = syncAttendanceWithFirebase;
-        window.syncPayrollWithFirebase = syncPayrollWithFirebase;
+        });
     </script>
-
 </head>
 <body>
-    <!-- Login Page (Initially shown) -->
-    <div id="login-page" class="login-container">
+    <!-- Login Container -->
+    <div id="loginContainer" class="login-container">
         <div class="login-box">
+            <div class="login-title">PayrollPro HR System</div>
+            
             <!-- Login Form -->
             <div id="login-form">
-                <div class="login-title">Samkitec Resources</div>
-                <h2>Login</h2>
                 <div class="form-group">
                     <label for="login-email">Email</label>
                     <input type="email" id="login-email" placeholder="Enter your email">
-                    <div class="error-message" id="login-email-error"></div>
                 </div>
                 <div class="form-group">
                     <label for="login-password">Password</label>
                     <input type="password" id="login-password" placeholder="Enter your password">
-                    <div class="error-message" id="login-password-error"></div>
                 </div>
                 <div class="form-group">
                     <button onclick="login()">Login</button>
                 </div>
                 <div class="toggle-form">
-                    Don't have an account? <a id="show-signup">Sign up</a>
+                    Don't have an account? <a onclick="toggleForms()">Sign up</a>
                 </div>
             </div>
-
+            
             <!-- Signup Form -->
             <div id="signup-form" class="hidden">
-                <div class="login-title">Samkitec Resources</div>
-                <h2>Sign Up</h2>
                 <div class="form-group">
                     <label for="signup-email">Email</label>
                     <input type="email" id="signup-email" placeholder="Enter your email">
-                    <div class="error-message" id="signup-email-error"></div>
                 </div>
                 <div class="form-group">
                     <label for="signup-password">Password</label>
                     <input type="password" id="signup-password" placeholder="Create a password">
-                    <div class="error-message" id="signup-password-error"></div>
                 </div>
                 <div class="form-group">
                     <label for="confirm-password">Confirm Password</label>
                     <input type="password" id="confirm-password" placeholder="Confirm your password">
-                    <div class="error-message" id="confirm-password-error"></div>
                 </div>
                 <div class="form-group">
                     <button onclick="signUp()">Sign Up</button>
                 </div>
                 <div class="toggle-form">
-                    Already have an account? <a id="show-login">Login</a>
+                    Already have an account? <a onclick="toggleForms()">Login</a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Main Application (Initially hidden) -->
-    <div id="app-container" class="container" style="display: none;">
-        <!-- Sidebar Navigation -->
+    <!-- Main App Container -->
+    <div id="appContainer" class="container" style="display: none;">
+        <!-- Sidebar -->
         <div class="sidebar">
             <div class="sidebar-header">
                 <h2><i class="fas fa-calculator"></i> PayrollPro</h2>
             </div>
             <div class="sidebar-menu">
-                <a href="#" class="menu-item" onclick="showSection('employees')">
+                <a class="menu-item active" onclick="showSection('dashboard')">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+                <a class="menu-item" onclick="showSection('employees')">
                     <i class="fas fa-users"></i> Employees
                 </a>
-                <a href="#" class="menu-item" onclick="showSection('payroll')">
-                    <i class="fas fa-money-bill-wave"></i> Payroll
+                <a class="menu-item" onclick="showSection('attendance')">
+                    <i class="fas fa-calendar-check"></i> Attendance
                 </a>
-                <a href="#" class="menu-item" onclick="showSection('attendance')">
-                    <i class="fas fa-clipboard-check"></i> Attendance
+                <a class="menu-item" onclick="showSection('payroll')">
+                    <i class="fas fa-file-invoice-dollar"></i> Payroll
+                </a>
+                <a class="menu-item" onclick="showSection('reports')">
+                    <i class="fas fa-chart-bar"></i> Reports
+                </a>
+                <a class="menu-item" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
                 </a>
             </div>
         </div>
 
-        <!-- Main Content Area -->
+        <!-- Main Content -->
         <div class="main-content">
+            <!-- Header -->
+            <div class="header">
+                <h1><i class="fas fa-home"></i> Dashboard</h1>
+                <div class="user-info">
+                    <span id="userEmail">user@example.com</span>
+                </div>
+            </div>
+
+            <!-- Dashboard Section -->
+            <div id="dashboard" class="page-section active">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="summary-card">
+                            <h3 class="summary-title">Total Employees</h3>
+                            <div class="summary-value" id="totalEmployees">0</div>
+                            <p>Active workforce</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="summary-card">
+                            <h3 class="summary-title">Present Today</h3>
+                            <div class="summary-value" id="presentToday">0</div>
+                            <p id="todayDate"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="summary-card">
+                            <h3 class="summary-title">Monthly Payroll</h3>
+                            <div class="summary-value" id="monthlyPayroll">₹0</div>
+                            <p>Current month</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Recent Activity</h3>
+                            </div>
+                            <div class="card-body">
+                                <p>System is running smoothly. No recent issues to report.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Employees Section -->
             <div id="employees" class="page-section">
                 <div class="header">
                     <h1><i class="fas fa-users"></i> Employee Management</h1>
                     <div class="user-info">
-                        <span id="logged-in-user">Admin User</span>
-                        <button id="sync-employees-btn" class="btn btn-info sync-btn">
-                            <i class="fas fa-sync-alt"></i> Sync
-                        </button>
-                        <div id="sync-employees-status" class="sync-status synced">
-                            <i class="fas fa-check-circle"></i> Synced
-                        </div>
-                        <button onclick="logout()" class="btn btn-danger" style="margin-left: 10px; padding: 5px 10px;">
-                            <i class="fas fa-sign-out-alt"></i> Logout
-                        </button>
+                        <span id="employeesUserEmail">user@example.com</span>
                     </div>
                 </div>
 
-                <!-- Action Bar -->
                 <div class="action-bar">
                     <div class="search-container">
                         <i class="fas fa-search"></i>
                         <input type="text" id="employeeSearch" class="search-input" placeholder="Search employees...">
                     </div>
                     <div class="btn-group">
-                        <button id="addEmployeeBtn" class="btn btn-primary">
+                        <button class="btn btn-primary" onclick="showEmployeeForm()">
                             <i class="fas fa-plus"></i> Add Employee
                         </button>
+                        <button class="btn btn-outline" onclick="exportEmployeeData()">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <button class="btn btn-outline" onclick="printEmployeeData()">
+                            <i class="fas fa-print"></i> Print
+                        </button>
+                        <button class="btn btn-info" onclick="syncEmployeesWithFirebase()">
+                            <i class="fas fa-sync"></i> Sync
+                        </button>
+                        <span id="employeesSyncStatus" class="sync-status">Ready</span>
                     </div>
                 </div>
 
                 <!-- Employee Form -->
                 <div id="employeeForm" class="form-container">
-                    <div class="form-title">
-                        <i class="fas fa-user-edit"></i> Employee Details
-                    </div>
-                    <form id="employeeDataForm">
-                        <input type="hidden" id="employeeId">
+                    <h3 class="form-title"><i class="fas fa-user-plus"></i> Add New Employee</h3>
+                    <form id="employeeFormElement">
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="empId">Employee ID *</label>
-                                <input type="text" id="empId" class="form-control" required>
+                                <label for="empName">Full Name</label>
+                                <input type="text" id="empName" class="form-control" required>
                             </div>
                             <div class="form-group">
-                                <label for="empName">Full Name *</label>
-                                <input type="text" id="empName" class="form-control" required>
+                                <label for="empId">Employee ID</label>
+                                <input type="text" id="empId" class="form-control" required>
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="empDepartment">Department *</label>
-                                <select id="empDepartment" class="form-control" required>
-                                    <option value="">Select Department</option>
-                                    <option value="HR">HR</option>
-                                    <option value="Finance">Finance</option>
-                                    <option value="Operations">Operations</option>
-                                    <option value="IT">IT</option>
-                                </select>
+                                <label for="empDepartment">Department</label>
+                                <input type="text" id="empDepartment" class="form-control" required>
                             </div>
                             <div class="form-group">
-                                <label for="empPosition">Position *</label>
+                                <label for="empPosition">Position</label>
                                 <input type="text" id="empPosition" class="form-control" required>
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="empEmail">Email *</label>
+                                <label for="empEmail">Email</label>
                                 <input type="email" id="empEmail" class="form-control" required>
                             </div>
                             <div class="form-group">
-                                <label for="empPhone">Phone *</label>
+                                <label for="empPhone">Phone</label>
                                 <input type="tel" id="empPhone" class="form-control" required>
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="empLocation">Location *</label>
-                                <input type="text" id="empLocation" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="empSalary">Base Salary (₹) *</label>
+                                <label for="empSalary">Basic Salary (₹)</label>
                                 <input type="number" id="empSalary" class="form-control" required>
                             </div>
-                        </div>
-                        <div class="form-row">
                             <div class="form-group">
-                                <label for="empBankName">Bank Name *</label>
-                                <input type="text" id="empBankName" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="empAccountNo">Account No. *</label>
-                                <input type="number" id="empAccountNo" class="form-control" required>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="empIFSCCode">IFSC Code *</label>
-                                <input type="text" id="empIFSCCode" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="empPFID">PF ID *</label>
-                                <input type="text" id="empPFID" class="form-control" required>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="empPFUAN">PF UAN *</label>
-                                <input type="text" id="empPFUAN" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="empAllowances">Allowances *</label>
-                                <input type="number" id="empAllowances" class="form-control" required>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="empDeductions">Deductions *</label>
-                                <input type="number" id="empDeductions" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="empTaxIdentification">Tax identification *</label>
-                                <input type="text" id="empTaxIdentification" class="form-control" required>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="empStatus">Employment Status *</label>
-                                <select id="empStatus" class="form-control" required>
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="empJoinDate">Join Date *</label>
+                                <label for="empJoinDate">Join Date</label>
                                 <input type="date" id="empJoinDate" class="form-control" required>
                             </div>
                         </div>
                         <div class="form-actions">
-                            <button type="button" id="cancelEmployeeBtn" class="btn btn-outline">Cancel</button>
-                            <button type="submit" id="saveEmployeeBtn" class="btn btn-primary">Save Employee</button>
+                            <button type="button" class="btn btn-outline" onclick="hideEmployeeForm()">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Employee</button>
                         </div>
                     </form>
                 </div>
 
-                <!-- Employee Data Table -->
+                <!-- Employee Table -->
                 <div class="data-table">
                     <div class="table-header">
-                        <div class="table-title">Employee Records</div>
-                        <div class="table-actions">
-                            <div class="btn-group">
-                                <button class="btn btn-outline btn-sm">
-                                    <i class="fas fa-filter"></i> Filter
-                                </button>
-                                <button class="btn btn-outline btn-sm">
-                                    <i class="fas fa-sync-alt"></i> Refresh
-                                </button>
-                            </div>
-                        </div>
+                        <h3 class="table-title">All Employees</h3>
                     </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Name</th>
-                                <th>Department</th>
-                                <th>Position</th>
-                                <th>Email</th>
-                                <th>Phone</th>
-                                <th>Location</th>
-                                <th>Bank Name</th>
-                                <th>PF ID</th>
-                                <th>PF UAN</th>
-                                <th>Salary</th>
-                                <th>Allowance</th>
-                                <th>Deduction</th>
-                                <th>Account No.</th>
-                                <th>IFSC Code</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="employeeTableBody">
-                            <!-- Employee data will be loaded here -->
-                        </tbody>
-                    </table>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Department</th>
+                                    <th>Position</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Salary</th>
+                                    <th>Join Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employeeTableBody">
+                                <!-- Employee data will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Section -->
+            <div id="attendance" class="page-section">
+                <div class="header">
+                    <h1><i class="fas fa-calendar-check"></i> Attendance Management</h1>
+                    <div class="user-info">
+                        <span id="attendanceUserEmail">user@example.com</span>
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <div class="date-selector">
+                        <label for="attendanceDate">Select Date:</label>
+                        <input type="date" id="attendanceDate" class="form-control">
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="markAllPresent()">
+                            <i class="fas fa-check-circle"></i> Mark All Present
+                        </button>
+                        <button class="btn btn-outline" onclick="saveAttendance()">
+                            <i class="fas fa-save"></i> Save Attendance
+                        </button>
+                        <button class="btn btn-info" onclick="syncAttendanceWithFirebase()">
+                            <i class="fas fa-sync"></i> Sync
+                        </button>
+                        <span id="attendanceSyncStatus" class="sync-status">Ready</span>
+                    </div>
+                </div>
+
+                <!-- Attendance Table -->
+                <div class="data-table">
+                    <div class="table-header">
+                        <h3 class="table-title">Daily Attendance</h3>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Employee ID</th>
+                                    <th>Name</th>
+                                    <th>Department</th>
+                                    <th>Status</th>
+                                    <th>Check In</th>
+                                    <th>Check Out</th>
+                                    <th>Late Minutes</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceTableBody">
+                                <!-- Attendance data will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
             <!-- Payroll Section -->
             <div id="payroll" class="page-section">
                 <div class="header">
-                    <h1><i class="fas fa-money-bill-wave"></i> Payroll Processing</h1>
+                    <h1><i class="fas fa-file-invoice-dollar"></i> Payroll Management</h1>
                     <div class="user-info">
-                        <span id="logged-in-user">Admin User</span>
-                        <button id="sync-payroll-btn" class="btn btn-info sync-btn">
-                            <i class="fas fa-sync-alt"></i> Sync
+                        <span id="payrollUserEmail">user@example.com</span>
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <div class="search-container">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="payrollSearch" class="search-input" placeholder="Search payroll...">
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="calculatePayroll()">
+                            <i class="fas fa-calculator"></i> Calculate Payroll
                         </button>
-                        <div id="sync-payroll-status" class="sync-status synced">
-                            <i class="fas fa-check-circle"></i> Synced
-                        </div>
-                        <button onclick="logout()" class="btn btn-danger" style="margin-left: 10px; padding: 5px 10px;">
-                            <i class="fas fa-sign-out-alt"></i> Logout
+                        <button class="btn btn-outline" onclick="exportPayrollData()">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <button class="btn btn-outline" onclick="printPayrollData()">
+                            <i class="fas fa-print"></i> Print
                         </button>
                     </div>
                 </div>
 
-                <div class="alert alert-info" id="payrollAlert">
-                    <!-- Content will be filled by JavaScript -->
-                </div>
-
-                <!-- Employee Selection and Details - Side by Side Layout -->
-
-                <div class="employee-info-container">
-                    <!-- Employee Selection Card -->
-                    <div class="card employee-selection-card">
-                        <div class="card-header">
-                            <h3 class="card-title">Employee Selection</h3>
-                        </div>
-                        <div class="card-body">
-                            <div class="form-group">
-                                <label class="form-label">Select Employee</label>
-                                <select class="form-control" id="employeeSelect">
-                                    <option value="">-- Select Employee --</option>
-                                    <!-- Options will be filled by JavaScript -->
-                                </select>
+                <!-- Payroll Summary -->
+                <div id="salarySummarySection" class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Salary Summary</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="summary-card">
+                                    <h3 class="summary-title">Total Basic Salary</h3>
+                                    <div class="summary-value" id="totalBasicSalary">₹0</div>
+                                </div>
                             </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Pay Period</label>
-                                <select class="form-control" id="payPeriodSelect">
-                                    <!-- Options will be filled by JavaScript -->
-                                </select>
+                            <div class="col-md-4">
+                                <div class="summary-card">
+                                    <h3 class="summary-title">Total Deductions</h3>
+                                    <div class="summary-value" id="totalDeductions">₹0</div>
+                                </div>
                             </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Payment Date</label>
-                                <input type="date" class="form-control" id="paymentDate" value="">
+                            <div class="col-md-4">
+                                <div class="summary-card">
+                                    <h3 class="summary-title">Net Payable</h3>
+                                    <div class="summary-value" id="netPayable">₹0</div>
+                                </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Employee Details Card -->
-                    <div class="card employee-details-card">
-                        <div class="card-header">
-                            <h3 class="card-title">Employee Details</h3>
-                            <button id="editEmployeeBtn" class="btn btn-edit">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                        </div>
-                        <div class="card-body" id="employeeDetailsSection">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label class="form-label">Employee ID</label>
-                                        <input type="text" class="form-control employee-input" id="payrollEmployeeId" value="" disabled>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Full Name</label>
-                                        <input type="text" class="form-control employee-input" id="payrollEmployeeName" value="" disabled>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Email</label>
-                                        <input type="email" class="form-control employee-input" id="payrollEmployeeEmail" value="" disabled>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Phone</label>
-                                        <input type="tel" class="form-control employee-input" id="payrollEmployeePhone" value="" disabled>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Joining Date</label>
-                                        <input type="text" class="form-control employee-input" id="payrollEmployeeJoiningDate" value="" disabled>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label class="form-label">Department</label>
-                                        <input type="text" class="form-control employee-input" id="payrollEmployeeDept" value="" disabled>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Position</label>
-                                        <input type="text" class="form-control employee-input" id="payrollEmployeePosition" value="" disabled>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Location</label>
-                                        <input type="text" class="form-control employee-input" id="payrollEmployeeLocation" value="" disabled>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Bank Name</label>
-                                        <input type="text" class="form-control employee-input" id="payrollEmployeeBankName" value="" disabled>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Account Number</label>
-                                        <input type="text" class="form-control employee-input" id="payrollEmployeeBankAccount" value="" disabled>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">IFSC Code</label>
-                                        <input type="text" class="form-control employee-input" id="payrollEmployeeIFSC" value="" disabled>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">PF ID</label>
-                                        <input type="text" class="form-control employee-input" id="payrollEmployeePFID" value="" disabled>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">PF UAN</label>
-                                        <input type="text" class="form-control employee-input" id="payrollEmployeePFUAN" value="" disabled>
-                                    </div>
-                                </div>
-                            </div>
-                            <div id="employeeActionBtns" style="display: none;">
-                                <button id="saveEmployeeBtn" class="btn btn-success">
-                                    <i class="fas fa-save"></i> Save Changes
-                                </button>
-                                <button id="cancelEmployeeBtn" class="btn btn-primary">
-                                    <i class="fas fa-times"></i> Cancel
-                                </button>
-                            </div>
-                        </div>
+                <!-- Payroll Table -->
+                <div class="data-table">
+                    <div class="table-header">
+                        <h3 class="table-title">Employee Payroll</h3>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Employee ID</th>
+                                    <th>Name</th>
+                                    <th>Basic Salary</th>
+                                    <th>Days Present</th>
+                                    <th>Deductions</th>
+                                    <th>Net Salary</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="payrollTableBody">
+                                <!-- Payroll data will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports Section -->
+            <div id="reports" class="page-section">
+                <div class="header">
+                    <h1><i class="fas fa-chart-bar"></i> Reports & Analytics</h1>
+                    <div class="user-info">
+                        <span id="reportsUserEmail">user@example.com</span>
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="generateAttendanceReport()">
+                            <i class="fas fa-calendar"></i> Attendance Report
+                        </button>
+                        <button class="btn btn-success" onclick="generatePayrollReport()">
+                            <i class="fas fa-file-invoice-dollar"></i> Payroll Report
+                        </button>
+                        <button class="btn btn-info" onclick="generateEmployeeReport()">
+                            <i class="fas fa-users"></i> Employee Report
+                        </button>
                     </div>
                 </div>
 
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-12">
                         <div class="card">
                             <div class="card-header">
-                                <h3 class="card-title">Salary Components</h3>
-                                <button id="editSalaryBtn" class="btn btn-edit">
-                                    <i class="fas fa-edit"></i> Edit
-                                </button>
+                                <h3 class="card-title">Report Output</h3>
                             </div>
-                            <div class="card-body" id="salarySection">
-                                <div class="form-group">
-                                    <label class="form-label">Basic Salary</label>
-                                    <input type="number" class="form-control salary-input" id="basicSalary" value="" disabled>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="form-label">Allowances</label>
-                                    <input type="number" class="form-control salary-input" id="allowances" value="" disabled>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="form-label">Gross</label>
-                                    <input type="number" class="form-control salary-input" id="gross" value="" disabled>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="form-label">Actual Gross</label>
-                                    <input type="number" class="form-control salary-input" id="actualGross" value="" disabled>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="form-label">Total Days</label>
-                                    <input type="number" class="form-control salary-input" id="totalDays" value="30" disabled>
-                                </div>
-
-                                <div id="salaryActionBtns" style="display: none;">
-                                    <button id="saveSalaryBtn" class="btn btn-success">
-                                        <i class="fas fa-save"></i> Save Changes
-                                    </button>
-                                    <button id="cancelSalaryBtn" class="btn btn-primary">
-                                        <i class="fas fa-times"></i> Cancel
-                                    </button>
+                            <div class="card-body">
+                                <div id="reportOutput">
+                                    <p>Select a report to generate from the buttons above.</p>
                                 </div>
                             </div>
                         </div>
                     </div>
-
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">Deductions</h3>
-                                <button id="editDeductionsBtn" class="btn btn-edit">
-                                    <i class="fas fa-edit"></i> Edit
-                                </button>
-                            </div>
-                            <div class="card-body" id="deductionsSection">
-                                <div class="form-group">
-                                    <label class="form-label">Absent Days</label>
-                                    <input type="number" class="form-control deduction-input" id="absentDays" value="0" disabled>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="form-label">Half Day</label>
-                                    <input type="number" class="form-control deduction-input" id="halfDay" value="0" disabled>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="form-label">Advance Deduction</label>
-                                    <input type="number" class="form-control deduction-input" id="advanceDeduction" value="0" disabled>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="form-label">TDS</label>
-                                    <input type="number" class="form-control deduction-input" id="tds" value="" disabled>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="form-label">PF</label>
-                                    <input type="number" class="form-control deduction-input" id="pf" value="" disabled>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="form-label">ESI</label>
-                                    <input type="number" class="form-control deduction-input" id="esi" value="" disabled>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="form-label">PT</label>
-                                    <input type="number" class="form-control deduction-input" id="pt" value="" disabled>
-                                </div>
-
-                                <div id="deductionsActionBtns" style="display: none;">
-                                    <button id="saveDeductionsBtn" class="btn btn-success">
-                                        <i class="fas fa-save"></i> Save Changes
-                                    </button>
-                                    <button id="cancelDeductionsBtn" class="btn btn-primary">
-                                        <i class="fas fa-times"></i> Cancel
-                                    </button>
-                                </div>
-
-                                <!-- Submit Button -->
-
-                                <button id="submitPayrollBtn" class="btn btn-submit">
-                                    <i class="fas fa-calculator"></i> Calculate & Generate Salary Summary
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Salary Summary Section (Initially Hidden) -->
-                <div id="salarySummarySection">
-                    <div class="row">
-                        <div class="col-md-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h3 class="card-title">Salary Summary</h3>
-                                </div>
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-md-4">
-                                            <div class="summary-card">
-                                                <h4 class="summary-title">Allowances</h4>
-                                                <ul class="summary-details">
-                                                    <li>
-                                                        <span>Basic Salary</span>
-                                                        <span id="displayBasic">₹0.00</span>
-                                                    </li>
-                                                    <li>
-                                                        <span>Allowances</span>
-                                                        <span id="displayAllowances">₹0.00</span>
-                                                    </li>
-                                                    <li>
-                                                        <span>Gross</span>
-                                                        <span id="displayGross">₹0.00</span>
-                                                    </li>
-                                                    <li>
-                                                        <span>Actual Gross</span>
-                                                        <span id="displayActualGross">₹0.00</span>
-                                                    </li>
-                                                    <li class="highlight">
-                                                        <span>Total Earnings</span>
-                                                        <span id="displayTotalEarnings">₹0.00</span>
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                        </div>
-
-                                        <div class="col-md-4">
-                                            <div class="summary-card">
-                                                <h4 class="summary-title">Deductions</h4>
-                                                <ul class="summary-details">
-                                                    <li>
-                                                        <span>Absent Days</span>
-                                                        <span id="displayAbsentDays">0</span>
-                                                    </li>
-                                                    <li>
-                                                        <span>Half Day</span>
-                                                        <span id="displayHalfDay">0</span>
-                                                    </li>
-                                                    <li>
-                                                        <span>Advance Deduction</span>
-                                                        <span id="displayAdvance">₹0.00</span>
-                                                    </li>
-                                                    <li>
-                                                        <span>TDS</span>
-                                                        <span id="displayTDS">₹0.00</span>
-                                                    </li>
-                                                    <li>
-                                                        <span>PF</span>
-                                                        <span id="displayPF">₹0.00</span>
-                                                    </li>
-                                                    <li>
-                                                        <span>ESI</span>
-                                                        <span id="displayESI">₹0.00</span>
-                                                    </li>
-                                                    <li>
-                                                        <span>PT</span>
-                                                        <span id="displayPT">₹0.00</span>
-                                                    </li>
-                                                    <li class="highlight">
-                                                        <span>Total Deductions</span>
-                                                        <span id="displayTotalDeductions">₹0.00</span>
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                        </div>
-
-                                        <div class="col-md-4">
-                                            <div class="summary-card">
-                                                <h4 class="summary-title">Net Salary</h4>
-                                                <div class="summary-value" id="displayNet">₹0.00</div>
-                                                <div class="form-group">
-                                                    <label class="form-label">Payment Method</label>
-                                                    <select class="form-control">
-                                                        <option>Bank Transfer</option>
-                                                        <option>Check</option>
-                                                        <option>Cash</option>
-                                                    </select>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label class="form-label">Bank Account</label>
-                                                    <input type="text" class="form-control" placeholder="Account details" value="" disabled>
-                                                </div>
-                                                <button class="btn btn-success" style="width: 100%;" id="generatePayslipBtn">
-                                                    <i class="fas fa-check-circle"></i> Approve & Process Payslip
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div><!-- end row -->
-                </div><!-- end salarySummarySection -->
-
-            </div><!-- end payroll -->
-
-            <!-- Attendance Section -->
-            <div id="attendance" class="page-section">
-                <div class="header">
-                    <h1><i class="fas fa-clipboard-check"></i> Employee Attendance System</h1>
-                    <div class="user-info">
-                        <span id="logged-in-user">Admin User</span>
-                        <button id="sync-attendance-btn" class="btn btn-info sync-btn">
-                            <i class="fas fa-sync-alt"></i> Sync
-                        </button>
-                        <div id="sync-attendance-status" class="sync-status synced">
-                            <i class="fas fa-check-circle"></i> Synced
-                        </div>
-                        <button onclick="logout()" class="btn btn-danger" style="margin-left: 10px; padding: 5px 10px;">
-                            <i class="fas fa-sign-out-alt"></i> Logout
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Attendance Management Card -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Daily Attendance</h3>
-                        <button class="btn btn-info" onclick="openMonthlyRecords()">
-                            <i class="fas fa-calendar-alt"></i> Monthly Records
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <div class="date-selector">
-                            <label class="form-label">Select Date:</label>
-                            <input type="date" class="form-control" id="attendance-date" style="max-width: 200px;">
-                        </div>
-
-                        <div class="search-container">
-                            <input type="text" class="form-control" id="employee-search" placeholder="Search employees...">
-                        </div>
-
-                        <button id="save-attendance-btn" class="btn btn-success" style="margin-bottom: 20px;">
-                            <i class="fas fa-save"></i> Save Today's Attendance
-                        </button>
-
-                        <div class="table-container">
-                            <table id="attendance-table">
-                                <thead>
-                                    <tr>
-                                        <th>Employee ID</th>
-                                        <th>Name</th>
-                                        <th>Department</th>
-                                        <th>Phone</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="attendance-list">
-                                    <!-- Attendance records will be added here dynamically -->
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div class="attendance-summary">
-                            <div class="summary-item">
-                                <div class="summary-value" id="present-count">0</div>
-                                <div class="summary-label">Present</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="summary-value" id="absent-count">0</div>
-                                <div class="summary-label">Absent</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="summary-value" id="late-count">0</div>
-                                <div class="summary-label">Late Arrivals</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="summary-value" id="leave-count">0</div>
-                                <div class="summary-label">Paid Leaves</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="summary-value" id="halfday-count">0</div>
-                                <div class="summary-label">Half Days</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="summary-value" id="total-count">0</div>
-                                <div class="summary-label">Total Employees</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div><!-- end attendance -->
-
-        </div><!-- end main-content -->
-    </div><!-- end app-container -->
-
-    <!-- Monthly Records Modal -->
-    <div id="monthly-records-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2><i class="fas fa-calendar-alt"></i> Monthly Attendance Records</h2>
-                <div class="modal-actions">
-                    <button class="btn btn-success" onclick="downloadMonthlyRecords()">
-                        <i class="fas fa-download"></i> Download Excel
-                    </button>
-                    <button class="btn btn-danger" onclick="closeMonthlyRecords()">
-                        <i class="fas fa-times"></i> Close
-                    </button>
-                </div>
-            </div>
-
-            <div style="margin-bottom: 20px;">
-                <label class="form-label">Select Month: </label>
-                <input type="month" class="form-control" id="month-select" onchange="loadMonthlyRecords()" style="max-width: 200px; display: inline-block;">
-                <button class="btn btn-danger" onclick="clearCurrentMonthRecords()" style="margin-left: 20px;">
-                    <i class="fas fa-trash"></i> Clear This Month's Records
-                </button>
-            </div>
-
-            <div class="table-container">
-                <div id="monthly-records-container">
-                    <!-- Monthly records will be loaded here -->
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Employee Details Modal -->
-    <div id="employee-details-modal" class="modal">
-        <div class="modal-content" id="employee-details-content">
+    <div id="employee-details-modal">
+        <div id="employee-details-content">
             <div class="modal-header">
-                <h2><i class="fas fa-user"></i> Employee Attendance Details</h2>
-                <div class="modal-actions">
-                    <button class="btn btn-success" onclick="downloadEmployeeDetails()">
-                        <i class="fas fa-download"></i> Download Excel
-                    </button>
-                    <button class="btn btn-danger" onclick="closeEmployeeDetails()">
-                        <i class="fas fa-times"></i> Close
-                    </button>
-                </div>
+                <h2>Employee Details</h2>
+                <button class="btn btn-outline" onclick="closeEmployeeDetails()">Close</button>
             </div>
-
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label class="form-label">Employee ID</label>
-                        <input type="text" class="form-control" id="detail-employee-id" disabled>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Name</label>
-                        <input type="text" class="form-control" id="detail-employee-name" disabled>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Select Month</label>
-                        <input type="month" class="form-control" id="detail-month-select" onchange="filterEmployeeDetailsByMonth()">
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label class="form-label">Department</label>
-                        <input type="text" class="form-control" id="detail-employee-dept" disabled>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Position</label>
-                        <input type="text" class="form-control" id="detail-employee-position" disabled>
-                    </div>
-                    <div class="form-group" style="text-align: right; margin-top: 25px;">
-                        <button class="btn btn-primary" onclick="editEmployeeAttendance()">
-                            <i class="fas fa-edit"></i> Edit Attendance
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card" style="margin-top: 20px;">
-                <div class="card-header">
-                    <h3 class="card-title">Attendance Summary</h3>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="summary-card">
-                                <h4 class="summary-title">Attendance Counts</h4>
-                                <ul class="summary-details">
-                                    <li>
-                                        <span>Present Days</span>
-                                        <span id="detail-present-days">0</span>
-                                    </li>
-                                    <li>
-                                        <span>Absent Days</span>
-                                        <span id="detail-absent-days">0</span>
-                                    </li>
-                                    <li>
-                                        <span>Late Arrivals</span>
-                                        <span id="detail-late-days">0</span>
-                                    </li>
-                                    <li>
-                                        <span>Paid Leaves</span>
-                                        <span id="detail-leave-days">0</span>
-                                    </li>
-                                    <li>
-                                        <span>Half Days</span>
-                                        <span id="detail-halfday-days">0</span>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <div class="summary-card">
-                                <h4 class="summary-title">Calculated Values</h4>
-                                <ul class="summary-details">
-                                    <li>
-                                        <span>Total Days Present</span>
-                                        <span id="detail-total-present">0</span>
-                                    </li>
-                                    <li>
-                                        <span>Total Days Absent</span>
-                                        <span id="detail-total-absent">0</span>
-                                    </li>
-                                    <li>
-                                        <span>Half Days Left</span>
-                                        <span id="detail-halfday-left">Null</span>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <div class="summary-card">
-                                <h4 class="summary-title">Attendance Records</h4>
-                                <div class="table-container" style="max-height: 300px; overflow-y: auto;">
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>Date</th>
-                                                <th>Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="detail-attendance-records">
-                                            <!-- Attendance records will be added here -->
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div id="employeeDetailsContent">
+                <!-- Employee details will be populated here -->
             </div>
         </div>
     </div>
 
-    <!-- Original app logic (keeps localStorage behavior & UI functions intact) -->
     <script>
-        // Employee Data Management
+        // Global variables
         let employees = JSON.parse(localStorage.getItem('employees')) || [];
-
-        // Attendance Data Management
         let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || {};
-        let monthlyReports = JSON.parse(localStorage.getItem('monthlyReports')) || {};
-        let savedDays = JSON.parse(localStorage.getItem('savedDays')) || [];
+        let payrollData = JSON.parse(localStorage.getItem('payrollData')) || [];
 
-        // DOM Elements for Employee Management
-        const employeeElements = {
-            form: document.getElementById('employeeForm'),
-            formFields: {
-                id: document.getElementById('employeeId'),
-                empId: document.getElementById('empId'),
-                name: document.getElementById('empName'),
-                department: document.getElementById('empDepartment'),
-                position: document.getElementById('empPosition'),
-                email: document.getElementById('empEmail'),
-                phone: document.getElementById('empPhone'),
-                location: document.getElementById('empLocation'),
-                salary: document.getElementById('empSalary'),
-                bankName: document.getElementById('empBankName'),
-                accountNo: document.getElementById('empAccountNo'),
-                IFSCCode: document.getElementById('empIFSCCode'),
-                PFID: document.getElementById('empPFID'),
-                PFUAN: document.getElementById('empPFUAN'),
-                allowances: document.getElementById('empAllowances'),
-                deductions: document.getElementById('empDeductions'),
-                taxIdentification: document.getElementById('empTaxIdentification'),
-                status: document.getElementById('empStatus'),
-                joinDate: document.getElementById('empJoinDate')
-            },
-            buttons: {
-                add: document.getElementById('addEmployeeBtn'),
-                save: document.getElementById('saveEmployeeBtn'),
-                cancel: document.getElementById('cancelEmployeeBtn')
-            },
-            table: {
-                body: document.getElementById('employeeTableBody'),
-                search: document.getElementById('employeeSearch')
-            }
-        };
+        // DOM Content Loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+            loadEmployeeData();
+            loadAttendanceData();
+            updateDashboard();
+            setupEventListeners();
+        });
 
         // Initialize the application
-        function initializeApplication() {
-            renderEmployeeTable();
-            setupEmployeeEventListeners();
-            setupPayrollEventListeners();
-            setupAttendanceEventListeners();
-            updatePayrollDates();
-
-            // Load sample data if empty
-            if (employees.length === 0) {
-                loadSampleData();
+        function initializeApp() {
+            // Set today's date in the date picker
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('attendanceDate').value = today;
+            document.getElementById('empJoinDate').value = today;
+            
+            // Set today's date in dashboard
+            document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            // Set user email
+            const userEmail = document.getElementById('userEmail');
+            const user = window.firebaseAuth?.currentUser;
+            if (user && user.email) {
+                userEmail.textContent = user.email;
+                document.getElementById('employeesUserEmail').textContent = user.email;
+                document.getElementById('attendanceUserEmail').textContent = user.email;
+                document.getElementById('payrollUserEmail').textContent = user.email;
+                document.getElementById('reportsUserEmail').textContent = user.email;
             }
-
-            // Populate employee dropdown in payroll section
-            populatePayrollEmployeeDropdown();
-
-            // Set today's date as default for attendance
-            const today = new Date();
-            const todayFormatted = today.toISOString().split('T')[0];
-            document.getElementById('attendance-date').value = todayFormatted;
-
-            // Set current month as default for attendance
-            const currentMonth = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
-            document.getElementById('month-select').value = currentMonth;
-
-            // Show employees section by default
-            showSection('employees');
-
-            // Render initial attendance list
-            renderEmployeeAttendanceList();
-            updateAttendanceSummary();
-            updateAttendanceSaveButtonState();
-
-            // Sync with Firebase
-            if (typeof syncEmployeesWithFirebase === 'function') syncEmployeesWithFirebase();
-            if (typeof syncAttendanceWithFirebase === 'function') syncAttendanceWithFirebase();
-            if (typeof syncPayrollWithFirebase === 'function') syncPayrollWithFirebase();
         }
 
-        // The rest of your original JS (event listeners, renderers, attendance/payroll logic)
-        // NOTE: I preserved all original functions and names. Below are implementations
-        // from your original file, slightly rearranged so they work with the new firebase code.
-
-        // ---- UI Helpers and rendering ----
-        function showSection(section) {
-            document.querySelectorAll('.page-section').forEach(s => s.style.display = 'none');
-            const el = document.getElementById(section);
-            if (el) el.style.display = 'block';
-        }
-
-        function renderEmployeeTable() {
-            const tbody = document.getElementById('employeeTableBody');
-            tbody.innerHTML = '';
-            employees.forEach(emp => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${emp.empId || ''}</td>
-                    <td>${emp.name || ''}</td>
-                    <td>${emp.department || ''}</td>
-                    <td>${emp.position || ''}</td>
-                    <td>${emp.email || ''}</td>
-                    <td>${emp.phone || ''}</td>
-                    <td>${emp.location || ''}</td>
-                    <td>${emp.bankName || ''}</td>
-                    <td>${emp.PFID || ''}</td>
-                    <td>${emp.PFUAN || ''}</td>
-                    <td>${emp.salary || ''}</td>
-                    <td>${emp.allowances || ''}</td>
-                    <td>${emp.deductions || ''}</td>
-                    <td>${emp.accountNo || ''}</td>
-                    <td>${emp.IFSCCode || ''}</td>
-                    <td>${emp.status || ''}</td>
-                    <td>
-                        <button class="btn btn-sm btn-outline" onclick="editEmployeeRecord('${emp.id}')">Edit</button>
-                        <button class="btn btn-sm btn-danger" onclick="removeEmployeeRecord('${emp.id}')">Delete</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
+        // Setup event listeners
+        function setupEventListeners() {
+            // Employee form submission
+            document.getElementById('employeeFormElement').addEventListener('submit', function(e) {
+                e.preventDefault();
+                saveEmployee();
             });
-            populatePayrollEmployeeDropdown();
-        }
 
-        function populatePayrollEmployeeDropdown() {
-            const sel = document.getElementById('employeeSelect');
-            if (!sel) return;
-            sel.innerHTML = '<option value="">-- Select Employee --</option>';
-            employees.forEach(e => {
-                const opt = document.createElement('option');
-                opt.value = e.id;
-                opt.textContent = `${e.name} ${e.empId ? `(${e.empId})` : ''}`;
-                sel.appendChild(opt);
+            // Employee search
+            document.getElementById('employeeSearch').addEventListener('input', function() {
+                filterEmployees(this.value);
+            });
+
+            // Attendance date change
+            document.getElementById('attendanceDate').addEventListener('change', function() {
+                loadAttendanceData();
+            });
+
+            // Payroll search
+            document.getElementById('payrollSearch').addEventListener('input', function() {
+                filterPayroll(this.value);
             });
         }
 
-        function renderEmployeeAttendanceList() {
-            const tbody = document.getElementById('attendance-list');
-            tbody.innerHTML = '';
-            const date = document.getElementById('attendance-date').value;
-            const dayRec = attendanceRecords[date] || {};
-            employees.forEach(emp => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${emp.empId || ''}</td>
-                    <td>${emp.name || ''}</td>
-                    <td>${emp.department || ''}</td>
-                    <td>${emp.phone || ''}</td>
-                    <td>
-                        <select data-emp="${emp.id}">
-                            <option value="present" ${dayRec[emp.id] === 'present' ? 'selected' : ''}>Present</option>
-                            <option value="absent" ${(!dayRec[emp.id] || dayRec[emp.id] === 'absent') ? 'selected' : ''}>Absent</option>
-                            <option value="leave" ${dayRec[emp.id] === 'leave' ? 'selected' : ''}>Leave</option>
-                            <option value="half" ${dayRec[emp.id] === 'half' ? 'selected' : ''}>Half Day</option>
-                        </select>
-                    </td>
-                    <td>
-                        <button class="btn btn-sm btn-outline" onclick="openEmployeeDetails('${emp.id}')">Details</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
+        // Section navigation
+        function showSection(sectionId) {
+            // Hide all sections
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.remove('active');
             });
+
+            // Remove active class from all menu items
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // Show selected section
+            document.getElementById(sectionId).classList.add('active');
+
+            // Add active class to clicked menu item
+            event.target.classList.add('active');
+
+            // Update header title
+            const headerTitle = document.querySelector('.header h1');
+            const headerIcon = document.querySelector('.header h1 i');
+            
+            switch(sectionId) {
+                case 'dashboard':
+                    headerTitle.innerHTML = '<i class="fas fa-home"></i> Dashboard';
+                    updateDashboard();
+                    break;
+                case 'employees':
+                    headerTitle.innerHTML = '<i class="fas fa-users"></i> Employee Management';
+                    renderEmployeeTable();
+                    break;
+                case 'attendance':
+                    headerTitle.innerHTML = '<i class="fas fa-calendar-check"></i> Attendance Management';
+                    loadAttendanceData();
+                    break;
+                case 'payroll':
+                    headerTitle.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Payroll Management';
+                    calculatePayroll();
+                    break;
+                case 'reports':
+                    headerTitle.innerHTML = '<i class="fas fa-chart-bar"></i> Reports & Analytics';
+                    break;
+            }
         }
 
-        // ---- Sample data loader (keeps original behavior) ----
-        function loadSampleData() {
-            employees = [
-                { id: 'e1', empId: 'EMP001', name: 'Alice Johnson', department: 'Finance', position: 'Accountant', email: 'alice@example.com', phone: '9876543210', location: 'Mumbai', bankName: 'HDFC', accountNo: '1234567890', IFSCCode: 'HDFC0001', PFID: 'PF001', PFUAN: 'UAN001', salary: 50000, allowances: 5000, deductions: 2000, status: 'active', joinDate: '2022-01-15' },
-                { id: 'e2', empId: 'EMP002', name: 'Bob Singh', department: 'IT', position: 'Developer', email: 'bob@example.com', phone: '9876501234', location: 'Delhi', bankName: 'ICICI', accountNo: '0987654321', IFSCCode: 'ICIC0002', PFID: 'PF002', PFUAN: 'UAN002', salary: 60000, allowances: 6000, deductions: 2500, status: 'active', joinDate: '2021-11-01' }
-            ];
-            localStorage.setItem('employees', JSON.stringify(employees));
-            renderEmployeeTable();
+        // Toggle between login and signup forms
+        function toggleForms() {
+            const loginForm = document.getElementById('login-form');
+            const signupForm = document.getElementById('signup-form');
+            
+            if (loginForm.classList.contains('hidden')) {
+                loginForm.classList.remove('hidden');
+                signupForm.classList.add('hidden');
+            } else {
+                loginForm.classList.add('hidden');
+                signupForm.classList.remove('hidden');
+            }
         }
 
-        // ---- Employee CRUD that calls the cloud functions when available ----
-        document.getElementById('addEmployeeBtn').addEventListener('click', () => {
+        // Employee Management Functions
+        function showEmployeeForm() {
             document.getElementById('employeeForm').style.display = 'block';
-            document.getElementById('employeeDataForm').reset();
-            document.getElementById('employeeId').value = '';
-        });
+        }
 
-        document.getElementById('cancelEmployeeBtn').addEventListener('click', () => {
+        function hideEmployeeForm() {
             document.getElementById('employeeForm').style.display = 'none';
-        });
+            document.getElementById('employeeFormElement').reset();
+        }
 
-        document.getElementById('employeeDataForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const id = document.getElementById('employeeId').value || ('emp_' + Math.random().toString(36).slice(2,9));
-            const emp = {
-                id,
-                empId: document.getElementById('empId').value,
+        function saveEmployee() {
+            const empData = {
+                id: document.getElementById('empId').value,
                 name: document.getElementById('empName').value,
                 department: document.getElementById('empDepartment').value,
                 position: document.getElementById('empPosition').value,
                 email: document.getElementById('empEmail').value,
                 phone: document.getElementById('empPhone').value,
-                location: document.getElementById('empLocation').value,
-                bankName: document.getElementById('empBankName').value,
-                accountNo: document.getElementById('empAccountNo').value,
-                IFSCCode: document.getElementById('empIFSCCode').value,
-                PFID: document.getElementById('empPFID').value,
-                PFUAN: document.getElementById('empPFUAN').value,
-                salary: Number(document.getElementById('empSalary').value || 0),
-                allowances: Number(document.getElementById('empAllowances').value || 0),
-                deductions: Number(document.getElementById('empDeductions').value || 0),
-                taxIdentification: document.getElementById('empTaxIdentification').value,
-                status: document.getElementById('empStatus').value,
+                salary: parseFloat(document.getElementById('empSalary').value),
                 joinDate: document.getElementById('empJoinDate').value
             };
-            const idx = employees.findIndex(x => x.id === id);
-            if (idx >= 0) employees[idx] = emp; else employees.unshift(emp);
-            localStorage.setItem('employees', JSON.stringify(employees));
-            renderEmployeeTable();
-            document.getElementById('employeeForm').style.display = 'none';
-            // push to cloud if function available
-            if (typeof saveEmployeeToFirestore === 'function') {
-                await saveEmployeeToFirestore(emp);
-            } else if (typeof pushEmployeesToFirebase === 'function') {
-                await pushEmployeesToFirebase();
+
+            // Check if employee already exists
+            const existingIndex = employees.findIndex(emp => emp.id === empData.id);
+            
+            if (existingIndex !== -1) {
+                // Update existing employee
+                employees[existingIndex] = empData;
+            } else {
+                // Add new employee
+                employees.push(empData);
             }
-        });
 
-        function editEmployeeRecord(id) {
-            const emp = employees.find(e => e.id === id);
-            if (!emp) return alert('Employee not found');
-            document.getElementById('employeeForm').style.display = 'block';
-            document.getElementById('employeeId').value = emp.id;
-            document.getElementById('empId').value = emp.empId || '';
-            document.getElementById('empName').value = emp.name || '';
-            document.getElementById('empDepartment').value = emp.department || '';
-            document.getElementById('empPosition').value = emp.position || '';
-            document.getElementById('empEmail').value = emp.email || '';
-            document.getElementById('empPhone').value = emp.phone || '';
-            document.getElementById('empLocation').value = emp.location || '';
-            document.getElementById('empBankName').value = emp.bankName || '';
-            document.getElementById('empAccountNo').value = emp.accountNo || '';
-            document.getElementById('empIFSCCode').value = emp.IFSCCode || '';
-            document.getElementById('empPFID').value = emp.PFID || '';
-            document.getElementById('empPFUAN').value = emp.PFUAN || '';
-            document.getElementById('empSalary').value = emp.salary || '';
-            document.getElementById('empAllowances').value = emp.allowances || '';
-            document.getElementById('empDeductions').value = emp.deductions || '';
-            document.getElementById('empTaxIdentification').value = emp.taxIdentification || '';
-            document.getElementById('empStatus').value = emp.status || 'active';
-            document.getElementById('empJoinDate').value = emp.joinDate || '';
-        }
-
-        async function removeEmployeeRecord(id) {
-            if (!confirm('Delete this employee?')) return;
-            employees = employees.filter(e => e.id !== id);
+            // Save to localStorage
             localStorage.setItem('employees', JSON.stringify(employees));
+
+            // Save to Firestore
+            window.saveEmployeeToFirestore(empData);
+
+            // Update UI
             renderEmployeeTable();
-            if (typeof deleteEmployeeFromFirestore === 'function') {
-                await deleteEmployeeFromFirestore(id);
-            } else if (typeof pushEmployeesToFirebase === 'function') {
-                await pushEmployeesToFirebase();
-            }
+            hideEmployeeForm();
+            updateDashboard();
         }
 
-        // ---- Payroll handlers ----
-        let payrollRecords = JSON.parse(localStorage.getItem('payrollRecords')) || [];
-
-        function setupPayrollEventListeners() {
-            document.getElementById('savePayrollBtn')?.addEventListener('click', async () => {
-                const employeeId = document.getElementById('employeeSelect').value;
-                if (!employeeId) return alert('Choose an employee');
-                const basic = Number(document.getElementById('basicSalary').value || 0);
-                const allowances = Number(document.getElementById('allowances')?.value || Math.round(basic * 0.1));
-                const net = basic + allowances - (Number(document.getElementById('pf')?.value || 0));
-                const rec = {
-                    id: 'pay_' + Math.random().toString(36).slice(2,9),
-                    employeeId,
-                    basic,
-                    allowances,
-                    net,
-                    createdAt: new Date().toISOString()
-                };
-                payrollRecords.unshift(rec);
-                localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
-                renderPayrollTable();
-                if (typeof pushPayrollToFirebase === 'function') await pushPayrollToFirebase();
-            });
+        function loadEmployeeData() {
+            renderEmployeeTable();
         }
 
-        function renderPayrollTable() {
-            const tbody = document.getElementById('payrollTableBody');
-            if (!tbody) return;
+        function renderEmployeeTable() {
+            const tbody = document.getElementById('employeeTableBody');
             tbody.innerHTML = '';
-            payrollRecords.forEach(r => {
-                const emp = employees.find(e => e.id === r.employeeId) || { name: 'Unknown' };
+
+            if (employees.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">No employees found</td></tr>';
+                return;
+            }
+
+            employees.forEach(emp => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${emp.name}</td><td>₹${r.basic}</td><td>₹${r.allowances}</td><td>₹${r.net}</td><td><button class="btn btn-sm btn-danger" onclick="deletePayrollRecord('${r.id}')">Delete</button></td>`;
+                tr.innerHTML = `
+                    <td>${emp.id}</td>
+                    <td>${emp.name}</td>
+                    <td>${emp.department}</td>
+                    <td>${emp.position}</td>
+                    <td>${emp.email}</td>
+                    <td>${emp.phone}</td>
+                    <td>₹${emp.salary.toLocaleString()}</td>
+                    <td>${new Date(emp.joinDate).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn btn-edit btn-sm" onclick="editEmployee('${emp.id}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteEmployee('${emp.id}')">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                        <button class="btn btn-info btn-sm" onclick="viewEmployeeDetails('${emp.id}')">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                    </td>
+                `;
                 tbody.appendChild(tr);
             });
         }
 
-        async function deletePayrollRecord(id) {
-            if (!confirm('Delete payroll record?')) return;
-            payrollRecords = payrollRecords.filter(p => p.id !== id);
-            localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
-            renderPayrollTable();
-            if (typeof pushPayrollToFirebase === 'function') await pushPayrollToFirebase();
-        }
+        function filterEmployees(searchTerm) {
+            const filteredEmployees = employees.filter(emp => 
+                emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                emp.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                emp.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                emp.position.toLowerCase().includes(searchTerm.toLowerCase())
+            );
 
-        // ---- Attendance handlers ----
-        function setupAttendanceEventListeners() {
-            document.getElementById('attendance-date').addEventListener('change', () => {
-                renderEmployeeAttendanceList();
+            const tbody = document.getElementById('employeeTableBody');
+            tbody.innerHTML = '';
+
+            filteredEmployees.forEach(emp => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${emp.id}</td>
+                    <td>${emp.name}</td>
+                    <td>${emp.department}</td>
+                    <td>${emp.position}</td>
+                    <td>${emp.email}</td>
+                    <td>${emp.phone}</td>
+                    <td>₹${emp.salary.toLocaleString()}</td>
+                    <td>${new Date(emp.joinDate).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn btn-edit btn-sm" onclick="editEmployee('${emp.id}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteEmployee('${emp.id}')">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                        <button class="btn btn-info btn-sm" onclick="viewEmployeeDetails('${emp.id}')">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
             });
-
-            document.getElementById('save-attendance-btn')?.addEventListener('click', async () => {
-                const date = document.getElementById('attendance-date').value;
-                const selects = document.querySelectorAll('#attendance-list select');
-                const dayObj = {};
-                selects.forEach(sel => {
-                    dayObj[sel.dataset.emp] = sel.value;
-                });
-                attendanceRecords[date] = dayObj;
-                localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
-                alert('Attendance saved locally');
-                if (typeof saveSingleAttendanceDate === 'function') {
-                    await saveSingleAttendanceDate(date, dayObj);
-                } else if (typeof pushAttendanceToFirebase === 'function') {
-                    await pushAttendanceToFirebase();
-                }
-            });
         }
 
-        // ---- Attendance modal & monthly records stubs (kept original handlers) ----
-        function openMonthlyRecords() {
-            document.getElementById('monthly-records-modal').style.display = 'flex';
+        function editEmployee(empId) {
+            const emp = employees.find(e => e.id === empId);
+            if (emp) {
+                document.getElementById('empId').value = emp.id;
+                document.getElementById('empName').value = emp.name;
+                document.getElementById('empDepartment').value = emp.department;
+                document.getElementById('empPosition').value = emp.position;
+                document.getElementById('empEmail').value = emp.email;
+                document.getElementById('empPhone').value = emp.phone;
+                document.getElementById('empSalary').value = emp.salary;
+                document.getElementById('empJoinDate').value = emp.joinDate;
+                
+                showEmployeeForm();
+            }
         }
-        function closeMonthlyRecords() {
-            document.getElementById('monthly-records-modal').style.display = 'none';
-        }
-        function downloadMonthlyRecords() {
-            alert('Download monthly records (not implemented in this demo)');
-        }
-        function loadMonthlyRecords() { /* ... original logic ... */ }
-        function clearCurrentMonthRecords() { /* ... original logic ... */ }
 
-        function openEmployeeDetails(id) {
-            const emp = employees.find(e => e.id === id);
-            if (!emp) return;
-            document.getElementById('employee-details-modal').style.display = 'flex';
-            document.getElementById('detail-employee-id').value = emp.empId || '';
-            document.getElementById('detail-employee-name').value = emp.name || '';
-            document.getElementById('detail-employee-dept').value = emp.department || '';
-            document.getElementById('detail-employee-position').value = emp.position || '';
+        function deleteEmployee(empId) {
+            if (confirm('Are you sure you want to delete this employee?')) {
+                employees = employees.filter(emp => emp.id !== empId);
+                localStorage.setItem('employees', JSON.stringify(employees));
+                
+                // Delete from Firestore
+                window.deleteEmployeeFromFirestore(empId);
+                
+                renderEmployeeTable();
+                updateDashboard();
+            }
         }
+
+        function viewEmployeeDetails(empId) {
+            const emp = employees.find(e => e.id === empId);
+            if (emp) {
+                const modal = document.getElementById('employee-details-modal');
+                const content = document.getElementById('employeeDetailsContent');
+                
+                content.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <h3>Personal Information</h3>
+                            <p><strong>Employee ID:</strong> ${emp.id}</p>
+                            <p><strong>Name:</strong> ${emp.name}</p>
+                            <p><strong>Email:</strong> ${emp.email}</p>
+                            <p><strong>Phone:</strong> ${emp.phone}</p>
+                        </div>
+                        <div>
+                            <h3>Employment Details</h3>
+                            <p><strong>Department:</strong> ${emp.department}</p>
+                            <p><strong>Position:</strong> ${emp.position}</p>
+                            <p><strong>Salary:</strong> ₹${emp.salary.toLocaleString()}</p>
+                            <p><strong>Join Date:</strong> ${new Date(emp.joinDate).toLocaleDateString()}</p>
+                        </div>
+                    </div>
+                `;
+                
+                modal.style.display = 'flex';
+            }
+        }
+
         function closeEmployeeDetails() {
             document.getElementById('employee-details-modal').style.display = 'none';
         }
-        function downloadEmployeeDetails() { alert('Download employee details (not implemented)'); }
 
-        // ---- small helpers & initialization ----
-        function updatePayrollDates() { /* placeholder for original logic */ }
-        function updateAttendanceSummary() { /* placeholder for original logic */ }
-        function updateAttendanceSaveButtonState() { /* placeholder for original logic */ }
+        function exportEmployeeData() {
+            if (employees.length === 0) {
+                alert('No employee data to export');
+                return;
+            }
 
-        // Wire show-login/signup toggles
-        document.getElementById('show-signup').addEventListener('click', () => {
-            document.getElementById('login-form').classList.add('hidden');
-            document.getElementById('signup-form').classList.remove('hidden');
-        });
-        document.getElementById('show-login').addEventListener('click', () => {
-            document.getElementById('signup-form').classList.add('hidden');
-            document.getElementById('login-form').classList.remove('hidden');
-        });
+            const worksheet = XLSX.utils.json_to_sheet(employees);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Employees');
+            XLSX.writeFile(workbook, 'employees.xlsx');
+        }
 
-        // Sync buttons
-        document.getElementById('sync-employees-btn').addEventListener('click', () => {
-            if (typeof syncEmployeesWithFirebase === 'function') syncEmployeesWithFirebase();
-        });
-        document.getElementById('sync-attendance-btn').addEventListener('click', () => {
-            if (typeof syncAttendanceWithFirebase === 'function') syncAttendanceWithFirebase();
-        });
-        document.getElementById('sync-payroll-btn').addEventListener('click', () => {
-            if (typeof syncPayrollWithFirebase === 'function') syncPayrollWithFirebase();
-        });
+        function printEmployeeData() {
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>Employee List</title>
+                        <style>
+                            table { width: 100%; border-collapse: collapse; }
+                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                            th { background-color: #f2f2f2; }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>Employee List</h1>
+                        ${document.getElementById('employeeTableBody').parentElement.outerHTML}
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        }
 
-        // onAuthStateChanged: if already logged in the firebase module will have set listeners and data; initialize UI
-        // The firebase module uses onAuthStateChanged too; we just hook into presence of auth user to start app
-        (function attachAuthInitCheck(){
-            // If firebaseAuth isn't ready yet, wait until load; otherwise check immediately
-            function startIfAuthed() {
-                if (window.firebaseAuth && window.firebaseAuth.currentUser) {
-                    initializeApplication();
+        // Attendance Management Functions
+        function loadAttendanceData() {
+            const date = document.getElementById('attendanceDate').value;
+            renderAttendanceTable(date);
+        }
+
+        function renderAttendanceTable(date) {
+            const tbody = document.getElementById('attendanceTableBody');
+            tbody.innerHTML = '';
+
+            if (employees.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No employees found</td></tr>';
+                return;
+            }
+
+            // Get attendance record for the selected date
+            const attendanceRecord = attendanceRecords[date] || {};
+
+            employees.forEach(emp => {
+                const empAttendance = attendanceRecord[emp.id] || {
+                    status: 'absent',
+                    checkIn: '',
+                    checkOut: '',
+                    lateMinutes: 0
+                };
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${emp.id}</td>
+                    <td>${emp.name}</td>
+                    <td>${emp.department}</td>
+                    <td>
+                        <select class="form-control attendance-status" data-emp-id="${emp.id}" onchange="updateAttendanceStatus('${emp.id}', this.value)">
+                            <option value="present" ${empAttendance.status === 'present' ? 'selected' : ''}>Present</option>
+                            <option value="absent" ${empAttendance.status === 'absent' ? 'selected' : ''}>Absent</option>
+                            <option value="late" ${empAttendance.status === 'late' ? 'selected' : ''}>Late</option>
+                            <option value="leave" ${empAttendance.status === 'leave' ? 'selected' : ''}>Leave</option>
+                            <option value="halfday" ${empAttendance.status === 'halfday' ? 'selected' : ''}>Half Day</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input type="time" class="form-control check-in-time" data-emp-id="${emp.id}" value="${empAttendance.checkIn}" onchange="updateCheckInTime('${emp.id}', this.value)">
+                    </td>
+                    <td>
+                        <input type="time" class="form-control check-out-time" data-emp-id="${emp.id}" value="${empAttendance.checkOut}" onchange="updateCheckOutTime('${emp.id}', this.value)">
+                    </td>
+                    <td>
+                        <input type="number" class="form-control late-minutes" data-emp-id="${emp.id}" value="${empAttendance.lateMinutes}" onchange="updateLateMinutes('${emp.id}', this.value)" placeholder="Late minutes">
+                    </td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="markPresent('${emp.id}')">
+                            <i class="fas fa-check"></i> Present
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="markAbsent('${emp.id}')">
+                            <i class="fas fa-times"></i> Absent
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateAttendanceStatus(empId, status) {
+            const date = document.getElementById('attendanceDate').value;
+            if (!attendanceRecords[date]) {
+                attendanceRecords[date] = {};
+            }
+            if (!attendanceRecords[date][empId]) {
+                attendanceRecords[date][empId] = {};
+            }
+            attendanceRecords[date][empId].status = status;
+        }
+
+        function updateCheckInTime(empId, time) {
+            const date = document.getElementById('attendanceDate').value;
+            if (!attendanceRecords[date]) {
+                attendanceRecords[date] = {};
+            }
+            if (!attendanceRecords[date][empId]) {
+                attendanceRecords[date][empId] = {};
+            }
+            attendanceRecords[date][empId].checkIn = time;
+        }
+
+        function updateCheckOutTime(empId, time) {
+            const date = document.getElementById('attendanceDate').value;
+            if (!attendanceRecords[date]) {
+                attendanceRecords[date] = {};
+            }
+            if (!attendanceRecords[date][empId]) {
+                attendanceRecords[date][empId] = {};
+            }
+            attendanceRecords[date][empId].checkOut = time;
+        }
+
+        function updateLateMinutes(empId, minutes) {
+            const date = document.getElementById('attendanceDate').value;
+            if (!attendanceRecords[date]) {
+                attendanceRecords[date] = {};
+            }
+            if (!attendanceRecords[date][empId]) {
+                attendanceRecords[date][empId] = {};
+            }
+            attendanceRecords[date][empId].lateMinutes = parseInt(minutes) || 0;
+        }
+
+        function markPresent(empId) {
+            updateAttendanceStatus(empId, 'present');
+            renderAttendanceTable(document.getElementById('attendanceDate').value);
+        }
+
+        function markAbsent(empId) {
+            updateAttendanceStatus(empId, 'absent');
+            renderAttendanceTable(document.getElementById('attendanceDate').value);
+        }
+
+        function markAllPresent() {
+            const date = document.getElementById('attendanceDate').value;
+            if (!attendanceRecords[date]) {
+                attendanceRecords[date] = {};
+            }
+            
+            employees.forEach(emp => {
+                if (!attendanceRecords[date][emp.id]) {
+                    attendanceRecords[date][emp.id] = {};
                 }
-            }
-            if (window.firebaseAuth) startIfAuthed();
-            else window.addEventListener('load', startIfAuthed);
-            // Also initialize when firebase's onAuthStateChanged triggers (in module)
-            const origOnAuth = window.onAuthStateChanged;
-            // but we rely on module's onAuthStateChanged, so we'll call initializeApplication from there.
-        })();
+                attendanceRecords[date][emp.id].status = 'present';
+            });
+            
+            renderAttendanceTable(date);
+        }
 
-        // If no firebase available (still) we initialize application from local cache
-        window.addEventListener('load', () => {
-            if (!window.firebaseAuth) {
-                // offline-only mode, still initialize from localStorage
-                initializeApplication();
+        function saveAttendance() {
+            const date = document.getElementById('attendanceDate').value;
+            
+            if (!attendanceRecords[date]) {
+                alert('No attendance data to save for ' + date);
+                return;
             }
-        });
+
+            // Save to localStorage
+            localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+
+            // Save to Firestore
+            window.saveSingleAttendanceDate(date, attendanceRecords[date]);
+
+            alert('Attendance saved successfully for ' + date);
+        }
+
+        // Payroll Management Functions
+        function calculatePayroll() {
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+            
+            payrollData = [];
+
+            let totalBasicSalary = 0;
+            let totalDeductions = 0;
+            let netPayable = 0;
+
+            employees.forEach(emp => {
+                // Calculate days present in current month
+                let daysPresent = 0;
+                Object.keys(attendanceRecords).forEach(date => {
+                    const recordDate = new Date(date);
+                    if (recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear) {
+                        const empAttendance = attendanceRecords[date][emp.id];
+                        if (empAttendance && (empAttendance.status === 'present' || empAttendance.status === 'late' || empAttendance.status === 'halfday')) {
+                            daysPresent++;
+                        }
+                    }
+                });
+
+                // Calculate daily salary
+                const dailySalary = emp.salary / 30; // Assuming 30 days in a month
+                
+                // Calculate basic salary for days present
+                const basicSalary = dailySalary * daysPresent;
+                
+                // Calculate deductions (for absent days and late minutes)
+                const absentDays = 22 - daysPresent; // Assuming 22 working days
+                const absentDeductions = dailySalary * Math.max(0, absentDays);
+                
+                // Late deductions (assuming ₹10 per minute late)
+                let lateDeductions = 0;
+                Object.keys(attendanceRecords).forEach(date => {
+                    const recordDate = new Date(date);
+                    if (recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear) {
+                        const empAttendance = attendanceRecords[date][emp.id];
+                        if (empAttendance && empAttendance.lateMinutes) {
+                            lateDeductions += empAttendance.lateMinutes * 10; // ₹10 per minute
+                        }
+                    }
+                });
+
+                const totalDeductions = absentDeductions + lateDeductions;
+                const netSalary = basicSalary - totalDeductions;
+
+                payrollData.push({
+                    id: emp.id,
+                    name: emp.name,
+                    basicSalary: basicSalary,
+                    daysPresent: daysPresent,
+                    deductions: totalDeductions,
+                    netSalary: netSalary
+                });
+
+                totalBasicSalary += basicSalary;
+                totalDeductions += totalDeductions;
+                netPayable += netSalary;
+            });
+
+            // Update summary
+            document.getElementById('totalBasicSalary').textContent = '₹' + totalBasicSalary.toLocaleString('en-IN', {maximumFractionDigits: 2});
+            document.getElementById('totalDeductions').textContent = '₹' + totalDeductions.toLocaleString('en-IN', {maximumFractionDigits: 2});
+            document.getElementById('netPayable').textContent = '₹' + netPayable.toLocaleString('en-IN', {maximumFractionDigits: 2});
+
+            // Show summary section
+            document.getElementById('salarySummarySection').style.display = 'block';
+
+            // Render payroll table
+            renderPayrollTable();
+
+            // Save to localStorage
+            localStorage.setItem('payrollData', JSON.stringify(payrollData));
+        }
+
+        function renderPayrollTable() {
+            const tbody = document.getElementById('payrollTableBody');
+            tbody.innerHTML = '';
+
+            if (payrollData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No payroll data found</td></tr>';
+                return;
+            }
+
+            payrollData.forEach(payroll => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${payroll.id}</td>
+                    <td>${payroll.name}</td>
+                    <td>₹${payroll.basicSalary.toLocaleString('en-IN', {maximumFractionDigits: 2})}</td>
+                    <td>${payroll.daysPresent}</td>
+                    <td>₹${payroll.deductions.toLocaleString('en-IN', {maximumFractionDigits: 2})}</td>
+                    <td>₹${payroll.netSalary.toLocaleString('en-IN', {maximumFractionDigits: 2})}</td>
+                    <td>
+                        <button class="btn btn-info btn-sm" onclick="viewPayrollDetails('${payroll.id}')">
+                            <i class="fas fa-eye"></i> Details
+                        </button>
+                        <button class="btn btn-success btn-sm" onclick="generatePayslip('${payroll.id}')">
+                            <i class="fas fa-file-invoice"></i> Payslip
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterPayroll(searchTerm) {
+            const filteredPayroll = payrollData.filter(payroll => 
+                payroll.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                payroll.id.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            const tbody = document.getElementById('payrollTableBody');
+            tbody.innerHTML = '';
+
+            filteredPayroll.forEach(payroll => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${payroll.id}</td>
+                    <td>${payroll.name}</td>
+                    <td>₹${payroll.basicSalary.toLocaleString('en-IN', {maximumFractionDigits: 2})}</td>
+                    <td>${payroll.daysPresent}</td>
+                    <td>₹${payroll.deductions.toLocaleString('en-IN', {maximumFractionDigits: 2})}</td>
+                    <td>₹${payroll.netSalary.toLocaleString('en-IN', {maximumFractionDigits: 2})}</td>
+                    <td>
+                        <button class="btn btn-info btn-sm" onclick="viewPayrollDetails('${payroll.id}')">
+                            <i class="fas fa-eye"></i> Details
+                        </button>
+                        <button class="btn btn-success btn-sm" onclick="generatePayslip('${payroll.id}')">
+                            <i class="fas fa-file-invoice"></i> Payslip
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function viewPayrollDetails(empId) {
+            const payroll = payrollData.find(p => p.id === empId);
+            const emp = employees.find(e => e.id === empId);
+            
+            if (payroll && emp) {
+                const modal = document.getElementById('employee-details-modal');
+                const content = document.getElementById('employeeDetailsContent');
+                
+                content.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <h3>Employee Information</h3>
+                            <p><strong>Employee ID:</strong> ${emp.id}</p>
+                            <p><strong>Name:</strong> ${emp.name}</p>
+                            <p><strong>Department:</strong> ${emp.department}</p>
+                            <p><strong>Position:</strong> ${emp.position}</p>
+                        </div>
+                        <div>
+                            <h3>Payroll Details</h3>
+                            <p><strong>Basic Salary:</strong> ₹${emp.salary.toLocaleString()}</p>
+                            <p><strong>Days Present:</strong> ${payroll.daysPresent}</p>
+                            <p><strong>Calculated Salary:</strong> ₹${payroll.basicSalary.toLocaleString('en-IN', {maximumFractionDigits: 2})}</p>
+                            <p><strong>Deductions:</strong> ₹${payroll.deductions.toLocaleString('en-IN', {maximumFractionDigits: 2})}</p>
+                            <p><strong>Net Salary:</strong> ₹${payroll.netSalary.toLocaleString('en-IN', {maximumFractionDigits: 2})}</p>
+                        </div>
+                    </div>
+                `;
+                
+                modal.style.display = 'flex';
+            }
+        }
+
+        function generatePayslip(empId) {
+            const payroll = payrollData.find(p => p.id === empId);
+            const emp = employees.find(e => e.id === empId);
+            
+            if (payroll && emp) {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                // Add company header
+                doc.setFontSize(20);
+                doc.text('PayrollPro HR System', 105, 15, { align: 'center' });
+                doc.setFontSize(16);
+                doc.text('PAYSLIP', 105, 25, { align: 'center' });
+                
+                // Add employee information
+                doc.setFontSize(12);
+                doc.text(`Employee ID: ${emp.id}`, 20, 40);
+                doc.text(`Name: ${emp.name}`, 20, 50);
+                doc.text(`Department: ${emp.department}`, 20, 60);
+                doc.text(`Position: ${emp.position}`, 20, 70);
+                
+                // Add payment details
+                doc.text(`Basic Salary: ₹${emp.salary.toLocaleString()}`, 20, 85);
+                doc.text(`Days Present: ${payroll.daysPresent}`, 20, 95);
+                doc.text(`Calculated Salary: ₹${payroll.basicSalary.toLocaleString('en-IN', {maximumFractionDigits: 2})}`, 20, 105);
+                doc.text(`Deductions: ₹${payroll.deductions.toLocaleString('en-IN', {maximumFractionDigits: 2})}`, 20, 115);
+                doc.text(`Net Salary: ₹${payroll.netSalary.toLocaleString('en-IN', {maximumFractionDigits: 2})}`, 20, 125);
+                
+                // Add date
+                doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 145);
+                
+                // Save the PDF
+                doc.save(`payslip_${emp.id}_${new Date().getMonth() + 1}_${new Date().getFullYear()}.pdf`);
+            }
+        }
+
+        function exportPayrollData() {
+            if (payrollData.length === 0) {
+                alert('No payroll data to export');
+                return;
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(payrollData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Payroll');
+            XLSX.writeFile(workbook, 'payroll.xlsx');
+        }
+
+        function printPayrollData() {
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>Payroll Report</title>
+                        <style>
+                            table { width: 100%; border-collapse: collapse; }
+                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                            th { background-color: #f2f2f2; }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>Payroll Report</h1>
+                        ${document.getElementById('payrollTableBody').parentElement.outerHTML}
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        }
+
+        // Reports Functions
+        function generateAttendanceReport() {
+            const output = document.getElementById('reportOutput');
+            let html = '<h3>Attendance Report</h3>';
+            
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+            
+            html += `<p>Report for ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>`;
+            
+            // Calculate attendance summary
+            let totalPresent = 0;
+            let totalAbsent = 0;
+            let totalLate = 0;
+            let totalLeave = 0;
+            let totalHalfDay = 0;
+            
+            Object.keys(attendanceRecords).forEach(date => {
+                const recordDate = new Date(date);
+                if (recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear) {
+                    const dailyRecord = attendanceRecords[date];
+                    Object.keys(dailyRecord).forEach(empId => {
+                        const status = dailyRecord[empId].status;
+                        switch(status) {
+                            case 'present': totalPresent++; break;
+                            case 'absent': totalAbsent++; break;
+                            case 'late': totalLate++; break;
+                            case 'leave': totalLeave++; break;
+                            case 'halfday': totalHalfDay++; break;
+                        }
+                    });
+                }
+            });
+            
+            html += `
+                <div class="attendance-summary">
+                    <div class="summary-item">
+                        <h4>${totalPresent}</h4>
+                        <p>Present</p>
+                    </div>
+                    <div class="summary-item">
+                        <h4>${totalAbsent}</h4>
+                        <p>Absent</p>
+                    </div>
+                    <div class="summary-item">
+                        <h4>${totalLate}</h4>
+                        <p>Late</p>
+                    </div>
+                    <div class="summary-item">
+                        <h4>${totalLeave}</h4>
+                        <p>Leave</p>
+                    </div>
+                    <div class="summary-item">
+                        <h4>${totalHalfDay}</h4>
+                        <p>Half Day</p>
+                    </div>
+                </div>
+            `;
+            
+            output.innerHTML = html;
+        }
+
+        function generatePayrollReport() {
+            const output = document.getElementById('reportOutput');
+            calculatePayroll(); // Ensure payroll is calculated
+            
+            let html = '<h3>Payroll Report</h3>';
+            html += `<p>Report generated on ${new Date().toLocaleDateString()}</p>`;
+            
+            html += `
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="summary-card">
+                            <h3 class="summary-title">Total Basic Salary</h3>
+                            <div class="summary-value">${document.getElementById('totalBasicSalary').textContent}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="summary-card">
+                            <h3 class="summary-title">Total Deductions</h3>
+                            <div class="summary-value">${document.getElementById('totalDeductions').textContent}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="summary-card">
+                            <h3 class="summary-title">Net Payable</h3>
+                            <div class="summary-value">${document.getElementById('netPayable').textContent}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            output.innerHTML = html;
+        }
+
+        function generateEmployeeReport() {
+            const output = document.getElementById('reportOutput');
+            let html = '<h3>Employee Report</h3>';
+            
+            // Department breakdown
+            const deptCount = {};
+            employees.forEach(emp => {
+                deptCount[emp.department] = (deptCount[emp.department] || 0) + 1;
+            });
+            
+            html += '<h4>Department Breakdown</h4><ul>';
+            Object.keys(deptCount).forEach(dept => {
+                html += `<li><strong>${dept}:</strong> ${deptCount[dept]} employees</li>`;
+            });
+            html += '</ul>';
+            
+            // Salary statistics
+            const totalSalary = employees.reduce((sum, emp) => sum + emp.salary, 0);
+            const avgSalary = employees.length > 0 ? totalSalary / employees.length : 0;
+            const maxSalary = Math.max(...employees.map(emp => emp.salary));
+            const minSalary = Math.min(...employees.map(emp => emp.salary));
+            
+            html += `
+                <h4>Salary Statistics</h4>
+                <ul>
+                    <li><strong>Total Monthly Salary:</strong> ₹${totalSalary.toLocaleString()}</li>
+                    <li><strong>Average Salary:</strong> ₹${avgSalary.toLocaleString('en-IN', {maximumFractionDigits: 2})}</li>
+                    <li><strong>Highest Salary:</strong> ₹${maxSalary.toLocaleString()}</li>
+                    <li><strong>Lowest Salary:</strong> ₹${minSalary.toLocaleString()}</li>
+                </ul>
+            `;
+            
+            output.innerHTML = html;
+        }
+
+        // Dashboard Functions
+        function updateDashboard() {
+            // Update total employees
+            document.getElementById('totalEmployees').textContent = employees.length;
+            
+            // Update present today
+            const today = new Date().toISOString().split('T')[0];
+            let presentToday = 0;
+            
+            if (attendanceRecords[today]) {
+                Object.keys(attendanceRecords[today]).forEach(empId => {
+                    const status = attendanceRecords[today][empId].status;
+                    if (status === 'present' || status === 'late' || status === 'halfday') {
+                        presentToday++;
+                    }
+                });
+            }
+            
+            document.getElementById('presentToday').textContent = presentToday;
+            
+            // Update monthly payroll
+            calculatePayroll();
+            const netPayable = document.getElementById('netPayable').textContent;
+            document.getElementById('monthlyPayroll').textContent = netPayable;
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('employee-details-modal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
     </script>
 </body>
 </html>
+[file content end]
