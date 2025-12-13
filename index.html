@@ -3437,6 +3437,7 @@
         let monthlyReports = JSON.parse(localStorage.getItem('monthlyReports')) || {};
         let savedDays = JSON.parse(localStorage.getItem('savedDays')) || [];
         let payrollRecords = JSON.parse(localStorage.getItem('payrollRecords')) || [];
+        let statutoryPayments = JSON.parse(localStorage.getItem('statutoryPayments')) || {};
         let companySettings = JSON.parse(localStorage.getItem('companySettings')) || {
             companyName: "Samkitec Resources",
             companyAddress: "Pyrogreen Energy Private Limited - FLAT NO 304, SAHITI SRI VIDHYA PETAL, Street No-1, Patrika Nagar, HITEC City, Hyderabad, Telangana 500081",
@@ -3472,6 +3473,17 @@
             document.getElementById('month-select').value = currentMonth;
             document.getElementById('reportMonthSelect').value = currentMonth;
             document.getElementById('payrollReportMonth').value = currentMonth;
+
+            ['month-select', 'payrollReportMonth'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('change', () => {
+                        if (typeof updateComplianceRiskUI === 'function') {
+                            updateComplianceRiskUI();
+                        }
+                    });
+                }
+            });
 
             // Show dashboard section by default
             showSection('dashboard');
