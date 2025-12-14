@@ -196,13 +196,6 @@
         const attendanceSummary = normalizeAttendance(attendance, monthKey);
         const payrollHistory = buildPayrollHistory(payroll, mapping);
 
-        console.log('[ComplianceRisk] Engine start', {
-            month: monthKey,
-            employees: employees?.length || 0,
-            payroll: payroll?.length || 0,
-            attendanceDates: Object.keys(attendance || {}).length
-        });
-
         const events = [];
         const categoryScore = { pf: 0, esi: 0, tds: 0, labor: 0 };
 
@@ -257,7 +250,7 @@
         const totalScore = Math.min(categoryScore.pf + categoryScore.esi + categoryScore.tds + categoryScore.labor, MAX_TOTAL_SCORE);
         const level = riskLevel(totalScore);
 
-        const result = {
+        return {
             month: monthKey,
             categoryScore,
             totalScore,
@@ -266,9 +259,6 @@
             suggestions: generateFixSuggestions(deduped),
             generatedAt: new Date().toISOString()
         };
-
-        console.log('[ComplianceRisk] Engine result', result);
-        return result;
     }
 
     function runComplianceRiskDevHarness() {
