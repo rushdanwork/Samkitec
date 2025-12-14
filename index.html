@@ -3507,6 +3507,17 @@
                 }
             });
 
+            ['month-select', 'payrollReportMonth'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('change', () => {
+                        if (typeof updateComplianceRiskUI === 'function') {
+                            updateComplianceRiskUI();
+                        }
+                    });
+                }
+            });
+
             // Show dashboard section by default
             showSection('dashboard');
 
