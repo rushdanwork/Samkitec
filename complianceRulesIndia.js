@@ -257,3 +257,9 @@
         SEVERITY_SCORES
     };
 })(window);
+// 🔹 Expose India compliance rules globally
+window.ComplianceRulesIndia = {
+  pfRules,
+  esiRules,
+  tdsRules
+};
