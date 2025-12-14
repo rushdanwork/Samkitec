@@ -6841,9 +6841,30 @@ Payment Method: ${record.paymentMethod}`);
             showSection('reports');
         };
     </script>
+    <script>
+  document.addEventListener("DOMContentLoaded", () => {
+    if (
+      typeof runComplianceRiskEngine === "function" &&
+      typeof renderComplianceRisk === "function"
+    ) {
+      const result = runComplianceRiskEngine({
+        month: new Date().toISOString().slice(0, 7),
+        employees: window.employees || [],
+        attendance: window.attendance || [],
+        payroll: window.payroll || []
+      });
+
+      renderComplianceRisk(result);
+    } else {
+      console.error("Compliance engine functions not found");
+    }
+  });
+</script>
+
    
 </body>
 </html>
+
 
 
 
