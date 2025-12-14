@@ -114,7 +114,11 @@
 
     function buildPayrollHistory(payrollRecords, mapping) {
         const historyByEmployee = {};
-        payrollRecords.forEach(record => {
+        const payrollList = Array.isArray(payrollRecords)
+            ? payrollRecords
+            : Object.values(payrollRecords || {});
+
+        payrollList.forEach(record => {
             const normalized = normalizePayroll(record, mapping);
             const empId = normalized.employeeId;
             if (!empId) return;
