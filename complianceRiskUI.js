@@ -181,3 +181,6 @@
         attachModalHandlers({ get value() { return updateComplianceRiskUI.lastResult; } });
     });
 })(window);
+// 🔹 Expose UI renderer globally
+window.renderComplianceRisk = renderComplianceRisk;
+
