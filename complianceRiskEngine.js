@@ -293,3 +293,6 @@
     window.runComplianceRiskDevHarness = runComplianceRiskDevHarness;
     window.buildFieldMapping = buildFieldMapping;
 })(window);
+// 🔹 Expose compliance engine globally
+window.runComplianceRiskEngine = runComplianceRiskEngine;
+
