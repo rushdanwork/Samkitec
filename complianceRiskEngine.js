@@ -191,8 +191,12 @@
     }
 
     function runComplianceRiskEngine({ month, employees = [], attendance = {}, payroll = [], statutoryPayments = {} } = {}) {
+        const employeeList = Array.isArray(employees)
+            ? employees
+            : Object.values(employees || {});
+
         const monthKey = normalizeMonth(month);
-        const mapping = buildFieldMapping({ employees, payrollRecords: payroll });
+        const mapping = buildFieldMapping({ employees: employeeList, payrollRecords: payroll });
         const attendanceSummary = normalizeAttendance(attendance, monthKey);
         const payrollHistory = buildPayrollHistory(payroll, mapping);
 
@@ -201,7 +205,7 @@
 
         const panMap = new Map();
         const duplicatePanEmployees = new Set();
-        employees.forEach(emp => {
+        employeeList.forEach(emp => {
             const normalized = normalizeEmployee(emp, mapping);
             const pan = normalized.pan;
             if (pan) {
@@ -214,7 +218,7 @@
             }
         });
 
-        employees.forEach(emp => {
+        employeeList.forEach(emp => {
             const normalized = normalizeEmployee(emp, mapping);
             if (!normalized.employeeId || !withinMonth(normalized, monthKey)) return;
 
@@ -293,6 +297,3 @@
     window.runComplianceRiskDevHarness = runComplianceRiskDevHarness;
     window.buildFieldMapping = buildFieldMapping;
 })(window);
-// 🔹 Expose compliance engine globally
-window.runComplianceRiskEngine = runComplianceRiskEngine;
-

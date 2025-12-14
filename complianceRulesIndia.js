@@ -249,17 +249,14 @@
         return events;
     }
 
-    window.complianceRulesIndia = {
+    const rulesApi = {
         evaluatePfRules,
         evaluateEsiRules,
         evaluateTdsRules,
         safeNumber,
         SEVERITY_SCORES
     };
+
+    window.complianceRulesIndia = rulesApi;
+    window.ComplianceRulesIndia = rulesApi;
 })(window);
-// 🔹 Expose India compliance rules globally
-window.ComplianceRulesIndia = {
-  pfRules,
-  esiRules,
-  tdsRules
-};
