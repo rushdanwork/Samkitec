@@ -3485,6 +3485,17 @@
                 }
             });
 
+            ['month-select', 'payrollReportMonth'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('change', () => {
+                        if (typeof updateComplianceRiskUI === 'function') {
+                            updateComplianceRiskUI();
+                        }
+                    });
+                }
+            });
+
             // Show dashboard section by default
             showSection('dashboard');
 
@@ -3560,6 +3571,10 @@
                 renderEmployeeTable();
                 populatePayrollEmployeeDropdown();
                 populateReportEmployeeDropdown();
+                if (typeof updateComplianceRiskUI === 'function') {
+                    console.log('[ComplianceRisk] refresh after employee sync');
+                    updateComplianceRiskUI();
+                }
 
                 await Promise.all(employees.map(emp => saveEmployeeToFirebase(emp.employeeId, emp)));
 
@@ -3622,6 +3637,10 @@
                     attendanceRecords = firebaseAttendance;
                     localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
                     updateSyncStatus('attendance', 'synced');
+                    if (typeof updateComplianceRiskUI === 'function') {
+                        console.log('[ComplianceRisk] refresh after attendance sync');
+                        updateComplianceRiskUI();
+                    }
                 } else {
                     // If no data in Firebase, push local data to Firebase
                     await pushAttendanceToFirebase();
@@ -3676,6 +3695,10 @@
                     payrollRecords = firebasePayroll;
                     localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
                     renderPayrollHistory();
+                    if (typeof updateComplianceRiskUI === 'function') {
+                        console.log('[ComplianceRisk] refresh after payroll sync');
+                        updateComplianceRiskUI();
+                    }
                 } else {
                     // If no data in Firebase, push local data to Firebase
                     await pushPayrollToFirebase();
