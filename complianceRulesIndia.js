@@ -1,5 +1,4 @@
 (function(window) {
-    // complianceRulesIndia.js v1.0 - PF/ESI/TDS rule definitions for browser usage
     const SEVERITY_SCORES = {
         critical: 30,
         high25: 25,
@@ -250,14 +249,11 @@
         return events;
     }
 
-    const rules = {
+    window.complianceRulesIndia = {
         evaluatePfRules,
         evaluateEsiRules,
         evaluateTdsRules,
         safeNumber,
         SEVERITY_SCORES
     };
-
-    window.complianceRulesIndia = rules;
-    window.ComplianceRulesIndia = rules;
 })(window);

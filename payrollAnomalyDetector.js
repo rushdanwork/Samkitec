@@ -1,5 +1,4 @@
 (function(window) {
-    // payrollAnomalyDetector.js v1.0 - surfaces attendance/payroll data anomalies in-browser
     const DEFAULT_OVERTIME_LIMIT = 2;
     const ILLEGAL_ID_CHARS = /[\/\\\?#%\.\[\]]/g;
 
@@ -237,5 +236,5 @@
         return anomalies;
     }
 
-    window.detectPayrollAnomalies = window.detectPayrollAnomalies || detectPayrollAnomalies;
+    window.detectPayrollAnomalies = detectPayrollAnomalies;
 })(window);

@@ -1,43 +1,10 @@
 (function(window) {
-    // complianceRiskUI.js v1.0 - renders compliance risk scores/events in the dashboard
     const LEVEL_COLORS = {
         Low: '#2ecc71',
         Medium: '#f1c40f',
         High: '#e67e22',
         Critical: '#e74c3c'
     };
-
-    function ensureComplianceRiskContainer() {
-        if (document.getElementById('compliance-risk-score')) return;
-
-        let dashboard = document.querySelector('#dashboard .content') || document.getElementById('dashboard');
-        if (!dashboard) {
-            dashboard = document.createElement('div');
-            dashboard.id = 'dashboard';
-            dashboard.className = 'content';
-            document.body.appendChild(dashboard);
-        }
-
-        const fallbackCard = document.createElement('div');
-        fallbackCard.className = 'card';
-        fallbackCard.id = 'compliance-risk-card';
-        fallbackCard.innerHTML = `
-            <div class="card-header">
-                <h3 class="card-title">Compliance Risk Prediction</h3>
-            </div>
-            <div class="card-body">
-                <div id="compliance-risk-score">0</div>
-                <div id="compliance-risk-level">Low</div>
-                <div id="pf-risk-score"></div>
-                <div id="esi-risk-score"></div>
-                <div id="tds-risk-score"></div>
-                <div id="compliance-risk-events" class="anomaly-list"></div>
-                <ul id="compliance-risk-suggestions"></ul>
-            </div>
-        `;
-
-        dashboard.appendChild(fallbackCard);
-    }
 
     function getCurrentMonthValue() {
         const monthPicker = document.getElementById('payrollReportMonth') || document.getElementById('month-select');
@@ -106,17 +73,6 @@
             `;
             list.appendChild(item);
         });
-    }
-
-    function renderComplianceRisk(result) {
-        ensureComplianceRiskContainer();
-        const finalResult = result || updateComplianceRiskUI.lastResult;
-        if (!finalResult) return null;
-
-        renderScoreCard(finalResult);
-        renderTopEvents(finalResult);
-        renderAllEvents(finalResult);
-        return finalResult;
     }
 
     function renderAllEvents(result) {
@@ -203,33 +159,25 @@
 
     function updateComplianceRiskUI() {
         if (typeof window.runComplianceRiskEngine !== 'function') return;
-        ensureComplianceRiskContainer();
-        const employeesData = window.employees || (typeof employees !== 'undefined' ? employees : []);
-        const attendanceData = window.attendanceRecords || (typeof attendanceRecords !== 'undefined' ? attendanceRecords : {});
-        const payrollData = window.payrollRecords || (typeof payrollRecords !== 'undefined' ? payrollRecords : []);
-        const statutoryData = window.statutoryPayments || (typeof statutoryPayments !== 'undefined' ? statutoryPayments : {});
         const monthValue = getCurrentMonthValue();
-        console.log('[ComplianceRisk] UI update start', { monthValue, employees: employeesData.length, payroll: payrollData.length });
         const result = window.runComplianceRiskEngine({
             month: monthValue,
-            employees: employeesData,
-            attendance: attendanceData,
-            payroll: payrollData,
-            statutoryPayments: statutoryData
+            employees: window.employees || [],
+            attendance: window.attendanceRecords || {},
+            payroll: window.payrollRecords || [],
+            statutoryPayments: window.statutoryPayments || {}
         });
 
         updateComplianceRiskUI.lastResult = result;
-        renderComplianceRisk(result);
-        console.log('[ComplianceRisk] UI render result', result);
+        renderScoreCard(result);
+        renderTopEvents(result);
+        renderAllEvents(result);
         return result;
     }
 
     window.updateComplianceRiskUI = updateComplianceRiskUI;
-    window.renderComplianceRisk = renderComplianceRisk;
 
     document.addEventListener('DOMContentLoaded', () => {
-        console.log('[ComplianceRisk] DOMContentLoaded - attaching modal handlers');
         attachModalHandlers({ get value() { return updateComplianceRiskUI.lastResult; } });
-        updateComplianceRiskUI();
     });
 })(window);

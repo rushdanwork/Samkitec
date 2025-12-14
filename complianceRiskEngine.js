@@ -1,5 +1,4 @@
 (function(window) {
-    // complianceRiskEngine.js v1.0 - orchestrates PF/ESI/TDS compliance scoring in the browser
     const DEFAULT_MONTH = () => new Date().toISOString().slice(0, 7);
     const MAX_CATEGORY_SCORE = 40;
     const MAX_TOTAL_SCORE = 100;
@@ -196,14 +195,6 @@
         const mapping = buildFieldMapping({ employees, payrollRecords: payroll });
         const attendanceSummary = normalizeAttendance(attendance, monthKey);
         const payrollHistory = buildPayrollHistory(payroll, mapping);
-        const rules = window.ComplianceRulesIndia || window.complianceRulesIndia;
-
-        console.log('[ComplianceRisk] Engine start', {
-            month: monthKey,
-            employees: employees?.length || 0,
-            payroll: payroll?.length || 0,
-            attendanceDates: Object.keys(attendance || {}).length
-        });
 
         const events = [];
         const categoryScore = { pf: 0, esi: 0, tds: 0, labor: 0 };
@@ -223,10 +214,6 @@
             }
         });
 
-        if (!rules) {
-            console.warn('[ComplianceRisk] Rules not loaded; returning empty result');
-        }
-
         employees.forEach(emp => {
             const normalized = normalizeEmployee(emp, mapping);
             if (!normalized.employeeId || !withinMonth(normalized, monthKey)) return;
@@ -236,14 +223,14 @@
             const payrollSnapshot = history.length ? history[history.length - 1] : normalizePayroll({}, mapping);
             const duplicatePan = duplicatePanEmployees.has(normalized.employeeId);
 
-            if (rules) {
-                const pfEvents = rules.evaluatePfRules({ employee: normalized, payrollSnapshot, attendanceSummary: attendanceForEmp, history, statutoryPayments });
+            if (window.complianceRulesIndia) {
+                const pfEvents = window.complianceRulesIndia.evaluatePfRules({ employee: normalized, payrollSnapshot, attendanceSummary: attendanceForEmp, history, statutoryPayments });
                 pfEvents.forEach(evt => events.push({ ...evt, category: 'PF', employeeId: normalized.employeeId, employeeName: normalized.name, date: payrollSnapshot.paymentDate || payrollSnapshot.period || monthKey }));
 
-                const esiEvents = rules.evaluateEsiRules({ employee: normalized, payrollSnapshot, attendanceSummary: attendanceForEmp, history, statutoryPayments });
+                const esiEvents = window.complianceRulesIndia.evaluateEsiRules({ employee: normalized, payrollSnapshot, attendanceSummary: attendanceForEmp, history, statutoryPayments });
                 esiEvents.forEach(evt => events.push({ ...evt, category: 'ESI', employeeId: normalized.employeeId, employeeName: normalized.name, date: payrollSnapshot.paymentDate || payrollSnapshot.period || monthKey }));
 
-                const tdsEvents = rules.evaluateTdsRules({ employee: normalized, payrollSnapshot, history, duplicatePan, statutoryPayments });
+                const tdsEvents = window.complianceRulesIndia.evaluateTdsRules({ employee: normalized, payrollSnapshot, history, duplicatePan, statutoryPayments });
                 tdsEvents.forEach(evt => events.push({ ...evt, category: 'TDS', employeeId: normalized.employeeId, employeeName: normalized.name, date: payrollSnapshot.paymentDate || payrollSnapshot.period || monthKey }));
             }
         });
@@ -263,7 +250,7 @@
         const totalScore = Math.min(categoryScore.pf + categoryScore.esi + categoryScore.tds + categoryScore.labor, MAX_TOTAL_SCORE);
         const level = riskLevel(totalScore);
 
-        const result = {
+        return {
             month: monthKey,
             categoryScore,
             totalScore,
@@ -272,9 +259,6 @@
             suggestions: generateFixSuggestions(deduped),
             generatedAt: new Date().toISOString()
         };
-
-        console.log('[ComplianceRisk] Engine result', result);
-        return result;
     }
 
     function runComplianceRiskDevHarness() {
