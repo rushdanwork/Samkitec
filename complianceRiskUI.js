@@ -6,6 +6,30 @@
         Critical: '#e74c3c'
     };
 
+    function ensureComplianceRiskContainer() {
+        let container = document.getElementById('compliance-risk-container');
+        if (container) return container;
+
+        container = document.createElement('div');
+        container.id = 'compliance-risk-container';
+        container.innerHTML = `
+            <div id="compliance-risk-score"></div>
+            <div id="compliance-risk-level"></div>
+            <div id="pf-risk-score"></div>
+            <div id="esi-risk-score"></div>
+            <div id="tds-risk-score"></div>
+            <ul id="compliance-risk-suggestions"></ul>
+            <div id="compliance-risk-events"></div>
+            <div id="compliance-risk-modal" style="display:none;">
+                <div id="compliance-risk-modal-body"></div>
+            </div>
+            <select id="compliance-filter-category" style="display:none;"></select>
+            <select id="compliance-filter-severity" style="display:none;"></select>
+        `;
+        document.body.appendChild(container);
+        return container;
+    }
+
     function getCurrentMonthValue() {
         const monthPicker = document.getElementById('payrollReportMonth') || document.getElementById('month-select');
         if (monthPicker && monthPicker.value) return monthPicker.value;
@@ -157,6 +181,13 @@
         });
     }
 
+    function renderComplianceRisk(result) {
+        ensureComplianceRiskContainer();
+        renderScoreCard(result);
+        renderTopEvents(result);
+        renderAllEvents(result);
+    }
+
     function updateComplianceRiskUI() {
         if (typeof window.runComplianceRiskEngine !== 'function') return;
         const monthValue = getCurrentMonthValue();
@@ -169,18 +200,18 @@
         });
 
         updateComplianceRiskUI.lastResult = result;
-        renderScoreCard(result);
-        renderTopEvents(result);
-        renderAllEvents(result);
+        if (typeof window.renderComplianceRisk === 'function') {
+            window.renderComplianceRisk(result);
+        } else {
+            renderComplianceRisk(result);
+        }
         return result;
     }
 
     window.updateComplianceRiskUI = updateComplianceRiskUI;
+    window.renderComplianceRisk = renderComplianceRisk;
 
     document.addEventListener('DOMContentLoaded', () => {
         attachModalHandlers({ get value() { return updateComplianceRiskUI.lastResult; } });
     });
 })(window);
-// 🔹 Expose UI renderer globally
-window.renderComplianceRisk = renderComplianceRisk;
-

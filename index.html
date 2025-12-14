@@ -6841,48 +6841,27 @@ Payment Method: ${record.paymentMethod}`);
             showSection('reports');
         };
     </script>
+    <script src="./complianceRulesIndia.js"></script>
+    <script src="./complianceRiskEngine.js"></script>
+    <script src="./complianceRiskUI.js"></script>
+    <script src="./payrollAnomalyDetector.js"></script>
     <script>
-  document.addEventListener("DOMContentLoaded", () => {
-    if (
-      typeof runComplianceRiskEngine === "function" &&
-      typeof renderComplianceRisk === "function"
-    ) {
-      const result = runComplianceRiskEngine({
-        month: new Date().toISOString().slice(0, 7),
-        employees: window.employees || [],
-        attendance: window.attendance || [],
-        payroll: window.payroll || []
-      });
+      document.addEventListener("DOMContentLoaded", () => {
+        if (
+          typeof runComplianceRiskEngine === "function" &&
+          typeof renderComplianceRisk === "function"
+        ) {
+          const employees = window.employees || [];
+          const attendance = window.attendanceRecords || window.attendance || {};
+          const payroll = window.payrollRecords || window.payroll || [];
 
-      renderComplianceRisk(result);
-    } else {
-      console.error("Compliance engine functions not found");
-    }
-  });
-</script>
-    <script>
-  document.addEventListener("DOMContentLoaded", () => {
-    if (
-      typeof runComplianceRiskEngine === "function" &&
-      typeof renderComplianceRisk === "function"
-    ) {
-      const result = runComplianceRiskEngine({
-        month: new Date().toISOString().slice(0, 7),
-        employees: window.employees || [],
-        attendance: window.attendance || [],
-        payroll: window.payroll || []
+          const result = runComplianceRiskEngine({ employees, attendance, payroll });
+          renderComplianceRisk(result);
+        } else {
+          console.error("Compliance engine functions not found");
+        }
       });
-
-      renderComplianceRisk(result);
-    } else {
-      console.error("Compliance engine functions not found");
-    }
-  });
-</script>
-<script src="./complianceRulesIndia.js"></script>
-<script src="./complianceRiskEngine.js"></script>
-<script src="./complianceRiskUI.js"></script>
-<script src="./payrollAnomalyDetector.js"></script>
+    </script>
 </body>
 </html>
 
