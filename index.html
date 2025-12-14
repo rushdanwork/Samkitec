@@ -779,9 +779,244 @@
             color: var(--dark-color);
             font-weight: 600;
         }
-        
+
+        .card-subtitle {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+
         .card-body {
             padding: 20px;
+        }
+
+        .anomaly-list {
+            max-height: 320px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .anomaly-item {
+            padding: 14px;
+            border: 1px solid #f1f3f5;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #ffffff, #f8f9ff);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+        }
+
+        .anomaly-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .anomaly-type {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .anomaly-count {
+            background: var(--primary-color);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-weight: 700;
+            box-shadow: var(--card-shadow);
+        }
+
+        .anomaly-type.missing {
+            background-color: var(--warning-color);
+        }
+
+        .anomaly-type.salary {
+            background-color: var(--danger-color);
+        }
+
+        .anomaly-type.mismatch {
+            background-color: var(--edit-color);
+        }
+
+        .anomaly-type.data {
+            background-color: var(--info-color);
+        }
+
+        .anomaly-title {
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: var(--dark-color);
+        }
+
+        .anomaly-description {
+            color: #495057;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .anomaly-empty {
+            text-align: center;
+            color: #6c757d;
+            padding: 20px;
+            border: 1px dashed #dee2e6;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+
+        .compliance-risk-wrapper {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        .compliance-score {
+            background: linear-gradient(135deg, #eef2ff, #f8f9ff);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: var(--card-shadow);
+            text-align: center;
+        }
+
+        .compliance-score__value {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--primary-color);
+            line-height: 1;
+        }
+
+        .compliance-score__label {
+            color: #6c757d;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+
+        .compliance-level-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 999px;
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .compliance-breakdown {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .compliance-chip {
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: #f1f3f5;
+            font-weight: 600;
+            color: #343a40;
+        }
+
+        .compliance-event {
+            background: #fff;
+            border: 1px solid #f1f3f5;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .compliance-event__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .compliance-event__title {
+            font-weight: 700;
+        }
+
+        .compliance-event__desc {
+            color: #6c757d;
+            font-size: 0.95rem;
+        }
+
+        .compliance-event--row {
+            display: grid;
+            grid-template-columns: 1.2fr 0.4fr 2fr;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .compliance-event__date {
+            color: #6c757d;
+            font-size: 0.85rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+        .badge.low { background: #2ecc71; color: #fff; }
+        .badge.medium { background: #f1c40f; color: #212529; }
+        .badge.high { background: #e67e22; color: #fff; }
+        .badge.critical { background: #e74c3c; color: #fff; }
+
+        .compliance-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 10px;
+        }
+
+        .compliance-risk-modal {
+            display: none;
+            position: fixed;
+            z-index: 999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .compliance-risk-modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 960px;
+            border-radius: 10px;
+        }
+
+        .compliance-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .compliance-modal-filters {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .compliance-risk-suggestions {
+            list-style: disc;
+            margin-top: 10px;
+            padding-left: 18px;
+            color: #4a5568;
         }
         
         /* Layout Styles */
@@ -1820,6 +2055,64 @@
                                     <button class="btn btn-warning" onclick="generateReports()">
                                         <i class="fas fa-chart-bar"></i> Generate Reports
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <div>
+                                    <h3 class="card-title">Compliance Risk Prediction (India)</h3>
+                                    <div class="card-subtitle">System automatically flags PF/ESI/TDS risks before filing</div>
+                                </div>
+                                <div class="compliance-level-badge" id="compliance-risk-level">Low</div>
+                            </div>
+                            <div class="card-body">
+                                <div class="compliance-risk-wrapper">
+                                    <div class="compliance-score">
+                                        <div class="compliance-score__value" id="compliance-risk-score">0</div>
+                                        <div class="compliance-score__label">Overall Score</div>
+                                        <div class="compliance-breakdown">
+                                            <span class="compliance-chip" id="pf-risk-score">PF: 0</span>
+                                            <span class="compliance-chip" id="esi-risk-score">ESI: 0</span>
+                                            <span class="compliance-chip" id="tds-risk-score">TDS: 0</span>
+                                        </div>
+                                        <ul class="compliance-risk-suggestions" id="compliance-risk-suggestions">
+                                            <li>No major risks detected for this month.</li>
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <div id="compliance-risk-events" class="anomaly-list">
+                                            <div class="anomaly-empty">Analyzing compliance risks...</div>
+                                        </div>
+                                        <div class="compliance-actions">
+                                            <button class="btn btn-outline btn-sm" id="compliance-view-all"><i class="fas fa-list"></i> View All</button>
+                                            <button class="btn btn-primary btn-sm" id="compliance-export"><i class="fas fa-file-export"></i> Export Risk Report</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <div>
+                                    <h3 class="card-title">AI Payroll Anomaly Detector</h3>
+                                    <div class="card-subtitle">System automatically flags issues before payroll is processed</div>
+                                </div>
+                                <div class="anomaly-count" id="anomaly-count">0</div>
+                            </div>
+                            <div class="card-body">
+                                <div id="anomaly-list" class="anomaly-list">
+                                    <div class="anomaly-empty">Analyzing your data for potential issues...</div>
                                 </div>
                             </div>
                         </div>
@@ -3253,6 +3546,33 @@
         </div>
     </div>
 
+    <div id="compliance-risk-modal" class="compliance-risk-modal">
+        <div class="compliance-risk-modal-content">
+            <div class="compliance-modal-header">
+                <h3>Compliance Risk Events</h3>
+                <button class="btn btn-danger btn-sm" id="compliance-risk-modal-close"><i class="fas fa-times"></i> Close</button>
+            </div>
+            <div class="compliance-modal-filters">
+                <select id="compliance-filter-category" class="form-control" style="max-width: 220px;">
+                    <option value="all">All Categories</option>
+                    <option value="PF">PF</option>
+                    <option value="ESI">ESI</option>
+                    <option value="TDS">TDS</option>
+                </select>
+                <select id="compliance-filter-severity" class="form-control" style="max-width: 220px;">
+                    <option value="all">All Severities</option>
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                </select>
+            </div>
+            <div id="compliance-risk-modal-body" class="anomaly-list">
+                <div class="anomaly-empty">No events to display.</div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const EMPLOYEE_STORAGE_KEY = 'employees';
         const ILLEGAL_ID_CHARS = /[\/\\\?#%\.\[\]]/g;
@@ -3333,6 +3653,7 @@
         let monthlyReports = JSON.parse(localStorage.getItem('monthlyReports')) || {};
         let savedDays = JSON.parse(localStorage.getItem('savedDays')) || [];
         let payrollRecords = JSON.parse(localStorage.getItem('payrollRecords')) || [];
+        let statutoryPayments = JSON.parse(localStorage.getItem('statutoryPayments')) || {};
         let companySettings = JSON.parse(localStorage.getItem('companySettings')) || {
             companyName: "Samkitec Resources",
             companyAddress: "Pyrogreen Energy Private Limited - FLAT NO 304, SAHITI SRI VIDHYA PETAL, Street No-1, Patrika Nagar, HITEC City, Hyderabad, Telangana 500081",
@@ -3368,6 +3689,17 @@
             document.getElementById('month-select').value = currentMonth;
             document.getElementById('reportMonthSelect').value = currentMonth;
             document.getElementById('payrollReportMonth').value = currentMonth;
+
+            ['month-select', 'payrollReportMonth'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('change', () => {
+                        if (typeof updateComplianceRiskUI === 'function') {
+                            updateComplianceRiskUI();
+                        }
+                    });
+                }
+            });
 
             // Show dashboard section by default
             showSection('dashboard');
@@ -3444,6 +3776,10 @@
                 renderEmployeeTable();
                 populatePayrollEmployeeDropdown();
                 populateReportEmployeeDropdown();
+                if (typeof updateComplianceRiskUI === 'function') {
+                    console.log('[ComplianceRisk] refresh after employee sync');
+                    updateComplianceRiskUI();
+                }
 
                 await Promise.all(employees.map(emp => saveEmployeeToFirebase(emp.employeeId, emp)));
 
@@ -3506,6 +3842,10 @@
                     attendanceRecords = firebaseAttendance;
                     localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
                     updateSyncStatus('attendance', 'synced');
+                    if (typeof updateComplianceRiskUI === 'function') {
+                        console.log('[ComplianceRisk] refresh after attendance sync');
+                        updateComplianceRiskUI();
+                    }
                 } else {
                     // If no data in Firebase, push local data to Firebase
                     await pushAttendanceToFirebase();
@@ -3560,6 +3900,10 @@
                     payrollRecords = firebasePayroll;
                     localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
                     renderPayrollHistory();
+                    if (typeof updateComplianceRiskUI === 'function') {
+                        console.log('[ComplianceRisk] refresh after payroll sync');
+                        updateComplianceRiskUI();
+                    }
                 } else {
                     // If no data in Firebase, push local data to Firebase
                     await pushPayrollToFirebase();
@@ -4706,8 +5050,14 @@
             return timeString;
         }
 
-        function updateAttendanceTime(employeeId, timeValue) {
-            const date = document.getElementById('attendance-date').value;
+        function getAttendanceRecord(date, employeeId) {
+            const safeId = sanitizeId(employeeId);
+            const records = attendanceRecords[date] || {};
+            return records[employeeId] || records[safeId];
+        }
+
+        function ensureAttendanceRecord(date, employeeId, defaults = {}) {
+            const baseDefaults = { status: 'absent', time: '', remarks: '' };
             const safeId = sanitizeId(employeeId);
 
             if (!attendanceRecords[date]) {
@@ -4715,16 +5065,23 @@
             }
 
             if (!attendanceRecords[date][safeId]) {
-                attendanceRecords[date][safeId] = {
-                    status: 'absent',
-                    time: '',
-                    remarks: ''
-                };
+                attendanceRecords[date][safeId] = { ...baseDefaults, ...defaults };
+            } else {
+                attendanceRecords[date][safeId] = { ...baseDefaults, ...attendanceRecords[date][safeId] };
             }
 
-            attendanceRecords[date][safeId].time = timeValue;
+            return { record: attendanceRecords[date][safeId], safeId };
+        }
+
+        function updateAttendanceTime(employeeId, timeValue) {
+            const date = document.getElementById('attendance-date').value;
+
+            const { record, safeId } = ensureAttendanceRecord(date, employeeId);
+
+            record.time = timeValue;
             localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
             renderEmployeeAttendanceList();
+            updateAttendanceSummary();
         }
 
         function renderEmployeeAttendanceList() {
@@ -4749,7 +5106,7 @@
             // Apply status filter
             if (statusFilter !== 'all') {
                 filteredEmployees = filteredEmployees.filter(emp => {
-                    const record = attendanceRecords[date][emp.id];
+                    const record = getAttendanceRecord(date, emp.id);
                     return record && record.status === statusFilter;
                 });
             }
@@ -4760,7 +5117,7 @@
             // Add each employee to the table
             filteredEmployees.forEach(emp => {
                 const safeId = sanitizeId(emp.id);
-                const record = attendanceRecords[date][emp.id] || {
+                const record = getAttendanceRecord(date, emp.id) || {
                     status: 'absent',
                     time: '',
                     remarks: ''
@@ -4827,45 +5184,18 @@
         
         function updateAttendanceRemarks(employeeId, remarks) {
             const date = document.getElementById('attendance-date').value;
-            const safeId = sanitizeId(employeeId);
+            const { record } = ensureAttendanceRecord(date, employeeId);
 
-            if (!attendanceRecords[date]) {
-                attendanceRecords[date] = {};
-            }
-
-            if (!attendanceRecords[date][safeId]) {
-                attendanceRecords[date][safeId] = {
-                    status: 'absent',
-                    time: '',
-                    remarks: ''
-                };
-            }
-
-            attendanceRecords[date][safeId].remarks = remarks;
+            record.remarks = remarks;
             localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
         }
         
         // Enhanced Mark attendance with time input for present, late, and halfday statuses
         function markAttendanceWithTime(employeeId, status) {
             const date = document.getElementById('attendance-date').value;
-            const safeId = sanitizeId(employeeId);
 
-            // Initialize date if not exists
-            if (!attendanceRecords[date]) {
-                attendanceRecords[date] = {};
-            }
+            const { record, safeId } = ensureAttendanceRecord(date, employeeId);
 
-            // Initialize employee record if not exists
-            if (!attendanceRecords[date][safeId]) {
-                attendanceRecords[date][safeId] = {
-                    status: 'absent',
-                    time: '',
-                    remarks: ''
-                };
-            }
-
-            const record = attendanceRecords[date][safeId];
-            
             // If already the same status, toggle to absent
             if (record.status === status) {
                 record.status = 'absent';
@@ -4899,23 +5229,11 @@
 
         function markSundayHoliday(employeeId) {
             const date = document.getElementById('attendance-date').value;
-            const safeId = sanitizeId(employeeId);
+            const { record, safeId } = ensureAttendanceRecord(date, employeeId);
 
-            if (!attendanceRecords[date]) {
-                attendanceRecords[date] = {};
-            }
-
-            if (!attendanceRecords[date][safeId]) {
-                attendanceRecords[date][safeId] = {
-                    status: 'absent',
-                    time: '',
-                    remarks: ''
-                };
-            }
-
-            attendanceRecords[date][safeId].status = 'holiday';
-            attendanceRecords[date][safeId].time = '';
-            attendanceRecords[date][safeId].day = 'Sunday';
+            record.status = 'holiday';
+            record.time = '';
+            record.day = 'Sunday';
 
             const timeInput = document.querySelector(`input[name="attendance-time-${safeId}"]`);
             if (timeInput) {
@@ -4930,23 +5248,7 @@
         // Enhanced Toggle attendance status (for statuses without time)
         function toggleAttendance(employeeId, status) {
             const date = document.getElementById('attendance-date').value;
-            const safeId = sanitizeId(employeeId);
-
-            // Initialize date if not exists
-            if (!attendanceRecords[date]) {
-                attendanceRecords[date] = {};
-            }
-
-            // Initialize employee record if not exists
-            if (!attendanceRecords[date][safeId]) {
-                attendanceRecords[date][safeId] = {
-                    status: 'absent',
-                    time: '',
-                    remarks: ''
-                };
-            }
-
-            const record = attendanceRecords[date][safeId];
+            const { record } = ensureAttendanceRecord(date, employeeId);
 
             // Toggle status - if current status is same as clicked status, set to absent
             if (record.status === status) {
@@ -4991,6 +5293,11 @@
             document.getElementById('leave-count').textContent = leave;
             document.getElementById('halfday-count').textContent = halfday;
             document.getElementById('total-count').textContent = employees.length;
+
+            renderPayrollAnomalies();
+            if (typeof updateComplianceRiskUI === 'function') {
+                updateComplianceRiskUI();
+            }
         }
         
         // Enhanced Update attendance save button state
@@ -5035,15 +5342,10 @@
             const date = document.getElementById('attendance-date').value;
 
             employees.forEach(emp => {
-                if (!attendanceRecords[date]) {
-                    attendanceRecords[date] = {};
-                }
-
-                attendanceRecords[date][emp.id] = {
-                    status: 'present',
-                    time: '',
-                    remarks: 'Bulk marked present'
-                };
+                const { record } = ensureAttendanceRecord(date, emp.id);
+                record.status = 'present';
+                record.time = '';
+                record.remarks = 'Bulk marked present';
             });
             
             localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
@@ -5054,17 +5356,12 @@
         
         function markAllAbsent() {
             const date = document.getElementById('attendance-date').value;
-            
+
             employees.forEach(emp => {
-                if (!attendanceRecords[date]) {
-                    attendanceRecords[date] = {};
-                }
-                
-                attendanceRecords[date][emp.id] = {
-                    status: 'absent',
-                    time: '',
-                    remarks: 'Bulk marked absent'
-                };
+                const { record } = ensureAttendanceRecord(date, emp.id);
+                record.status = 'absent';
+                record.time = '';
+                record.remarks = 'Bulk marked absent';
             });
             
             localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
@@ -5116,11 +5413,8 @@
         
         function getCurrentAttendanceStatus(employeeId) {
             const date = document.getElementById('bulk-attendance-date').value;
-            const safeId = sanitizeId(employeeId);
-            if (attendanceRecords[date] && attendanceRecords[date][safeId]) {
-                return attendanceRecords[date][safeId].status.toUpperCase();
-            }
-            return 'ABSENT';
+            const record = getAttendanceRecord(date, employeeId);
+            return record ? record.status.toUpperCase() : 'ABSENT';
         }
         
         function applyBulkAttendance() {
@@ -5136,16 +5430,10 @@
             
             checkboxes.forEach(checkbox => {
                 const employeeId = checkbox.value;
-                
-                if (!attendanceRecords[date]) {
-                    attendanceRecords[date] = {};
-                }
-                
-                attendanceRecords[date][employeeId] = {
-                    status: status,
-                    time: (status === 'present' || status === 'late' || status === 'halfday') ? time : '',
-                    remarks: 'Bulk attendance update'
-                };
+                const { record } = ensureAttendanceRecord(date, employeeId);
+                record.status = status;
+                record.time = (status === 'present' || status === 'late' || status === 'halfday') ? time : '';
+                record.remarks = 'Bulk attendance update';
             });
             
             localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
@@ -5183,8 +5471,8 @@
                 if (date.startsWith(`${year}-${monthNum.padStart(2, '0')}`)) {
                     Object.keys(attendanceRecords[date]).forEach(empId => {
                         const record = attendanceRecords[date][empId];
-                        const employee = employees.find(emp => emp.id === empId) || { 
-                            name: 'Unknown', 
+                        const employee = employees.find(emp => sanitizeId(emp.id) === sanitizeId(empId)) || {
+                            name: 'Unknown',
                             department: '',
                             phone: 'N/A'
                         };
@@ -5452,12 +5740,12 @@
             
             // Loop through each date in the month
             monthDates.forEach(date => {
-                if (attendanceRecords[date][employeeId]) {
-                    const record = attendanceRecords[date][employeeId];
+                const record = getAttendanceRecord(date, employeeId);
+                if (record) {
                     const dateObj = new Date(date);
-                    const formattedDate = dateObj.toLocaleDateString('en-US', { 
-                        year: 'numeric', 
-                        month: 'short', 
+                    const formattedDate = dateObj.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
                         day: 'numeric',
                         weekday: 'short'
                     });
@@ -5640,9 +5928,17 @@
             
             // Load recent employees
             loadRecentEmployees();
-            
+
             // Load attendance overview
             loadAttendanceOverview();
+
+            // Run anomaly detector
+            renderPayrollAnomalies();
+
+            // Run compliance risk engine
+            if (typeof updateComplianceRiskUI === 'function') {
+                updateComplianceRiskUI();
+            }
         }
         
         function loadRecentEmployees() {
@@ -5722,11 +6018,62 @@
                         <div style="font-size: 0.8rem;">Leave</div>
                     </div>
                     <div style="text-align: center;">
-                        <div style="font-size: 1.2rem; font-weight: bold;">${halfdayCount}</div>
-                        <div style="font-size: 0.8rem;">Half Day</div>
-                    </div>
+                    <div style="font-size: 1.2rem; font-weight: bold;">${halfdayCount}</div>
+                    <div style="font-size: 0.8rem;">Half Day</div>
                 </div>
+            </div>
             `;
+        }
+
+        function renderPayrollAnomalies() {
+            if (typeof window.detectPayrollAnomalies !== 'function') return;
+
+            const listElement = document.getElementById('anomaly-list');
+            const countElement = document.getElementById('anomaly-count');
+
+            if (!listElement) return;
+
+            const anomalies = window.detectPayrollAnomalies({
+                employees,
+                attendanceRecords,
+                payrollRecords,
+                overtimeLimitHours: 2,
+                firebaseAvailable: typeof isFirebaseAvailable === 'function' ? isFirebaseAvailable() : false
+            });
+
+            listElement.innerHTML = '';
+            if (countElement) {
+                countElement.textContent = anomalies.length;
+            }
+
+            if (anomalies.length === 0) {
+                listElement.innerHTML = '<div class="anomaly-empty">No issues detected. Payroll looks healthy.</div>';
+                return;
+            }
+
+            const typeClassMap = {
+                'Missing Attendance': 'missing',
+                'Salary Error': 'salary',
+                'Mismatch': 'mismatch',
+                'Data Error': 'data'
+            };
+
+            anomalies.forEach(anomaly => {
+                const item = document.createElement('div');
+                const typeClass = typeClassMap[anomaly.type] || 'data';
+
+                item.className = 'anomaly-item';
+                item.innerHTML = `
+                    <div class="anomaly-header">
+                        <span class="anomaly-type ${typeClass}">${anomaly.type}</span>
+                        <span style="color: #6c757d; font-size: 0.9rem;">${anomaly.date || 'N/A'}</span>
+                    </div>
+                    <div class="anomaly-title">${anomaly.employeeName || anomaly.employeeId || 'Unknown Employee'}</div>
+                    <div class="anomaly-description">${anomaly.description}</div>
+                `;
+
+                listElement.appendChild(item);
+            });
         }
 
         // Payroll History Functions
@@ -6402,8 +6749,8 @@ Payment Method: ${record.paymentMethod}`);
                 
                 Object.keys(attendanceRecords).forEach(date => {
                     if (date.startsWith(`${year}-${monthNum.padStart(2, '0')}`)) {
-                        if (attendanceRecords[date][emp.id]) {
-                            const record = attendanceRecords[date][emp.id];
+                        const record = getAttendanceRecord(date, emp.id);
+                        if (record) {
                             if (record.status === 'present') present++;
                             else if (record.status === 'absent') absent++;
                             else if (record.status === 'late') late++;
@@ -6463,8 +6810,8 @@ Payment Method: ${record.paymentMethod}`);
                 
                 Object.keys(attendanceRecords).forEach(date => {
                     if (date.startsWith(`${year}-${monthNum.padStart(2, '0')}`)) {
-                        if (attendanceRecords[date][emp.id]) {
-                            const record = attendanceRecords[date][emp.id];
+                        const record = getAttendanceRecord(date, emp.id);
+                        if (record) {
                             if (record.status === 'present') present++;
                             else if (record.status === 'absent') absent++;
                             else if (record.status === 'late') late++;
@@ -6665,6 +7012,7 @@ Payment Method: ${record.paymentMethod}`);
         window.exportAttendanceReport = exportAttendanceReport;
         window.viewAttendanceAnalytics = viewAttendanceAnalytics;
         window.shareAttendanceImage = shareAttendanceImage;
+        window.renderPayrollAnomalies = renderPayrollAnomalies;
         window.filterEmployeesByStatus = filterEmployeesByStatus;
         window.refreshEmployeeData = function() {
             renderEmployeeTable();
@@ -6672,6 +7020,26 @@ Payment Method: ${record.paymentMethod}`);
         window.generateReports = function() {
             showSection('reports');
         };
+    </script>
+
+    <!-- Compliance Risk Engine -->
+    <script src="./complianceRulesIndia.js"></script>
+    <script src="./complianceRiskEngine.js"></script>
+    <script src="./complianceRiskUI.js"></script>
+
+    <!-- Payroll Anomaly Detector -->
+    <script src="./payrollAnomalyDetector.js"></script>
+
+    <script>
+        // Ensure compliance and anomaly modules render once all scripts are loaded
+        window.addEventListener('load', () => {
+            if (typeof updateComplianceRiskUI === 'function') {
+                updateComplianceRiskUI();
+            }
+            if (typeof renderPayrollAnomalies === 'function') {
+                renderPayrollAnomalies();
+            }
+        });
     </script>
 </body>
 </html>
