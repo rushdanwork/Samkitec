@@ -1800,13 +1800,13 @@
             collection,
             doc,
             setDoc,
-            getDocs,
             deleteDoc,
             updateDoc,
             query,
             where,
             getDoc,
-            addDoc
+            addDoc,
+            onSnapshot
         } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
         import {
             getStorage,
@@ -1850,7 +1850,16 @@
             window.firebaseDb = db;
             window.firebaseStorage = storage;
             window.firestoreFunctions = {
-                collection, doc, setDoc, getDocs, deleteDoc, updateDoc, query, where, getDoc, addDoc
+                collection,
+                doc,
+                setDoc,
+                deleteDoc,
+                updateDoc,
+                query,
+                where,
+                getDoc,
+                addDoc,
+                onSnapshot
             };
         }
 
@@ -1897,7 +1906,20 @@
 
             try {
                 setFirebaseConnectionState('checking', 'Contacting Firebase services...');
-                await getDocs(collection(db, 'employees'));
+                await new Promise((resolve, reject) => {
+                    const unsubscribe = onSnapshot(
+                        collection(db, 'employees'),
+                        () => {
+                            unsubscribe();
+                            resolve();
+                        },
+                        (error) => {
+                            unsubscribe();
+                            reject(error);
+                        }
+                    );
+                });
+
                 setFirebaseConnectionState('success', 'Connected to Firebase. You can sign in now.');
                 return true;
             } catch (error) {
@@ -2115,6 +2137,9 @@
             } else {
                 clearAuthenticatedFirebaseContext();
                 console.log("No user logged in.");
+                if (typeof window.teardownRealtimeListeners === 'function') {
+                    window.teardownRealtimeListeners();
+                }
                 // Show login page and hide application
                 document.getElementById('login-page').style.display = 'flex';
                 document.getElementById('app-container').style.display = 'none';
@@ -3924,6 +3949,68 @@
             defaultPT: 200
         };
 
+        let realtimeReady = false;
+        let pendingDashboardRefresh = false;
+        let employeesSeeded = false;
+        let attendanceSeeded = false;
+        let payrollSeeded = false;
+        const realtimeUnsubscribers = {
+            employees: null,
+            attendance: null,
+            payroll: null,
+            notifications: null
+        };
+        const initialSnapshotState = {
+            employees: false,
+            attendance: false,
+            payroll: false,
+            notifications: false
+        };
+
+        function markInitialSnapshot(section) {
+            if (!initialSnapshotState[section]) {
+                initialSnapshotState[section] = true;
+                console.log(`[Realtime] Initial ${section} snapshot received.`);
+            }
+
+            const allReady = Object.values(initialSnapshotState).every(Boolean);
+            if (allReady && !realtimeReady) {
+                realtimeReady = true;
+                console.log('[Realtime] All initial snapshots loaded. Dashboard rendering unlocked.');
+                if (pendingDashboardRefresh) {
+                    pendingDashboardRefresh = false;
+                    loadDashboardData();
+                }
+            }
+        }
+
+        function requestDashboardRefresh(source = 'unknown') {
+            console.log(`[Dashboard] Refresh requested by ${source}.`);
+            if (!realtimeReady) {
+                console.log('[Dashboard] Realtime data not ready yet. Refresh queued.');
+                pendingDashboardRefresh = true;
+                return;
+            }
+            loadDashboardData();
+        }
+
+        function teardownRealtimeListeners() {
+            Object.keys(realtimeUnsubscribers).forEach(key => {
+                if (typeof realtimeUnsubscribers[key] === 'function') {
+                    realtimeUnsubscribers[key]();
+                }
+                realtimeUnsubscribers[key] = null;
+            });
+            realtimeReady = false;
+            pendingDashboardRefresh = false;
+            employeesSeeded = false;
+            attendanceSeeded = false;
+            payrollSeeded = false;
+            Object.keys(initialSnapshotState).forEach(key => {
+                initialSnapshotState[key] = false;
+            });
+        }
+
         // Initialize the application
         async function initializeApplication() {
             loadEmployeesFromStorage();
@@ -3933,7 +4020,6 @@
             setupPayrollEventListeners();
             setupAttendanceEventListeners();
             updatePayrollDates();
-            loadDashboardData();
             loadCompanySettings();
 
             // Populate employee dropdowns
@@ -4021,86 +4107,98 @@
             updateAttendanceSaveButtonState();
 
             // Sync with Firebase (non-blocking for other features)
-            syncEmployeesWithFirebase().catch(error => {
-                console.error('Employee sync failed during init:', error);
-            });
-            syncAttendanceWithFirebase();
-            syncPayrollWithFirebase();
+            try {
+                console.log('[Realtime] Starting Firestore listeners...');
+                await startRealtimeListeners();
+                console.log('[Realtime] Firestore listeners active.');
+            } catch (error) {
+                console.error('[Realtime] Failed to start listeners:', error);
+            }
+
+            requestDashboardRefresh('init');
             syncCompanySettingsWithFirebase();
         }
 
         // Enhanced Firebase Sync Functions
-        async function loadEmployeesFromFirebase() {
-            if (!ensureFirebaseReady('employees')) return [];
+        async function startRealtimeListeners() {
+            const listeners = [
+                startEmployeesListener(),
+                startAttendanceListener(),
+                startPayrollListener(),
+                startNotificationsListener()
+            ];
 
-            try {
-                const { getDocs, collection } = window.firestoreFunctions;
-                const snapshot = await getDocs(collection(window.firebaseDb, 'employees'));
-                const remoteEmployees = [];
-
-                snapshot.forEach(docSnap => {
-                    const safeId = sanitizeId(docSnap.id);
-                    remoteEmployees.push(normalizeEmployeeRecord({ ...docSnap.data(), employeeId: safeId }));
-                });
-
-                return remoteEmployees;
-            } catch (error) {
-                console.error('Error loading employees from Firebase:', error);
-                setSyncError('employees', describeSyncError(error));
-                updateSyncStatus('employees', 'error');
-                return [];
-            }
+            await Promise.all(listeners);
         }
 
-        async function syncEmployeesWithFirebase({ preferLocal = true } = {}) {
-            if (!ensureFirebaseReady('employees')) return;
+        function startEmployeesListener() {
+            if (!ensureFirebaseReady('employees')) return Promise.resolve(false);
 
             updateSyncStatus('employees', 'syncing');
+            console.log('[Employees] Firestore listener start.');
 
-            try {
-                const remoteEmployees = await loadEmployeesFromFirebase();
-                const mergedEmployees = new Map();
+            if (typeof realtimeUnsubscribers.employees === 'function') {
+                realtimeUnsubscribers.employees();
+            }
 
-                employees.forEach(emp => {
-                    const normalized = normalizeEmployeeRecord(emp);
-                    mergedEmployees.set(normalized.employeeId, normalized);
-                });
+            return new Promise(resolve => {
+                let resolved = false;
+                const { collection, onSnapshot } = window.firestoreFunctions;
 
-                remoteEmployees.forEach(emp => {
-                    const normalized = normalizeEmployeeRecord(emp);
-                    const existing = mergedEmployees.get(normalized.employeeId);
-                    if (!existing) {
-                        mergedEmployees.set(normalized.employeeId, normalized);
-                    } else {
-                        const localUpdated = new Date(existing.updatedAt || 0).getTime();
-                        const remoteUpdated = new Date(normalized.updatedAt || 0).getTime();
-                        if (!preferLocal && remoteUpdated > localUpdated) {
-                            mergedEmployees.set(normalized.employeeId, normalized);
-                        } else if (remoteUpdated > localUpdated) {
-                            mergedEmployees.set(normalized.employeeId, normalized);
+                realtimeUnsubscribers.employees = onSnapshot(
+                    collection(window.firebaseDb, 'employees'),
+                    (snapshot) => {
+                        console.log('[Employees] Snapshot success.', { count: snapshot.size });
+                        const remoteEmployees = snapshot.docs.map(docSnap => {
+                            const safeId = sanitizeId(docSnap.id);
+                            return normalizeEmployeeRecord({ ...docSnap.data(), employeeId: safeId });
+                        });
+
+                        if (snapshot.empty && employees.length > 0 && !employeesSeeded) {
+                            console.log('[Employees] Remote empty, seeding from local state.');
+                            employeesSeeded = true;
+                            pushEmployeesToFirebase().catch(error => {
+                                console.error('[Employees] Failed to seed remote data:', error);
+                            });
+                        } else if (!snapshot.empty) {
+                            employees = remoteEmployees;
+                            persistEmployees();
+                            console.log('[Employees] State updated.', { total: employees.length });
+                            renderEmployeeTable();
+                            populatePayrollEmployeeDropdown();
+                            populateReportEmployeeDropdown();
+                            if (typeof updateComplianceRiskUI === 'function') {
+                                console.log('[ComplianceRisk] refresh after employee snapshot');
+                                updateComplianceRiskUI();
+                            }
+                            requestDashboardRefresh('employees');
+                        }
+
+                        updateSyncStatus('employees', 'synced');
+                        setSyncError('employees', '');
+                        markInitialSnapshot('employees');
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(true);
+                        }
+                    },
+                    (error) => {
+                        console.error('[Employees] Snapshot failure:', error);
+                        updateSyncStatus('employees', 'error');
+                        setSyncError('employees', describeSyncError(error));
+                        markInitialSnapshot('employees');
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(false);
                         }
                     }
-                });
+                );
+            });
+        }
 
-                employees = Array.from(mergedEmployees.values());
-                persistEmployees();
-                renderEmployeeTable();
-                populatePayrollEmployeeDropdown();
-                populateReportEmployeeDropdown();
-                if (typeof updateComplianceRiskUI === 'function') {
-                    console.log('[ComplianceRisk] refresh after employee sync');
-                    updateComplianceRiskUI();
-                }
-
-                await Promise.all(employees.map(emp => saveEmployeeToFirebase(emp.employeeId, emp)));
-
-                updateSyncStatus('employees', 'synced');
-                setSyncError('employees', '');
-            } catch (error) {
-                console.error('Error syncing employees:', error);
-                updateSyncStatus('employees', 'error');
-                setSyncError('employees', describeSyncError(error));
-            }
+        async function syncEmployeesWithFirebase() {
+            console.log('[Employees] Manual sync requested.');
+            return startEmployeesListener();
         }
 
         async function pushEmployeesToFirebase() {
@@ -4132,41 +4230,76 @@
             await deleteDoc(doc(window.firebaseDb, 'employees', safeId));
         }
 
-        async function syncAttendanceWithFirebase() {
-            if (!ensureFirebaseReady('attendance')) return;
+        function startAttendanceListener() {
+            if (!ensureFirebaseReady('attendance')) return Promise.resolve(false);
 
-            try {
-                updateSyncStatus('attendance', 'syncing');
-                
-                const { collection, getDocs, doc, setDoc } = window.firestoreFunctions;
-                
-                // Get attendance from Firebase
-                const snapshot = await getDocs(collection(window.firebaseDb, 'attendance'));
-                const firebaseAttendance = {};
-                
-                snapshot.forEach(doc => {
-                    firebaseAttendance[doc.id] = doc.data();
-                });
-                
-                // If Firebase has data, use it (Firebase as source of truth)
-                if (Object.keys(firebaseAttendance).length > 0) {
-                    attendanceRecords = firebaseAttendance;
-                    localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
-                    updateSyncStatus('attendance', 'synced');
-                    if (typeof updateComplianceRiskUI === 'function') {
-                        console.log('[ComplianceRisk] refresh after attendance sync');
-                        updateComplianceRiskUI();
-                    }
-                } else {
-                    // If no data in Firebase, push local data to Firebase
-                    await pushAttendanceToFirebase();
-                    updateSyncStatus('attendance', 'synced');
-                }
-            } catch (error) {
-                console.error('Error syncing attendance with Firebase:', error);
-                updateSyncStatus('attendance', 'error');
-                setSyncError('attendance', describeSyncError(error));
+            updateSyncStatus('attendance', 'syncing');
+            console.log('[Attendance] Firestore listener start.');
+
+            if (typeof realtimeUnsubscribers.attendance === 'function') {
+                realtimeUnsubscribers.attendance();
             }
+
+            return new Promise(resolve => {
+                let resolved = false;
+                const { collection, onSnapshot } = window.firestoreFunctions;
+
+                realtimeUnsubscribers.attendance = onSnapshot(
+                    collection(window.firebaseDb, 'attendance'),
+                    (snapshot) => {
+                        console.log('[Attendance] Snapshot success.', { count: snapshot.size });
+                        const firebaseAttendance = {};
+                        snapshot.forEach(docSnap => {
+                            firebaseAttendance[docSnap.id] = docSnap.data();
+                        });
+
+                        if (snapshot.empty && Object.keys(attendanceRecords).length > 0 && !attendanceSeeded) {
+                            console.log('[Attendance] Remote empty, seeding from local state.');
+                            attendanceSeeded = true;
+                            pushAttendanceToFirebase().catch(error => {
+                                console.error('[Attendance] Failed to seed remote data:', error);
+                            });
+                        } else if (!snapshot.empty) {
+                            attendanceRecords = firebaseAttendance;
+                            localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+                            console.log('[Attendance] State updated.', {
+                                dates: Object.keys(attendanceRecords).length
+                            });
+                            if (typeof updateComplianceRiskUI === 'function') {
+                                console.log('[ComplianceRisk] refresh after attendance snapshot');
+                                updateComplianceRiskUI();
+                            }
+                            renderEmployeeAttendanceList();
+                            updateAttendanceSummary();
+                            updateAttendanceSaveButtonState();
+                            renderAttendanceHeatmap();
+                            requestDashboardRefresh('attendance');
+                        }
+
+                        updateSyncStatus('attendance', 'synced');
+                        markInitialSnapshot('attendance');
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(true);
+                        }
+                    },
+                    (error) => {
+                        console.error('[Attendance] Snapshot failure:', error);
+                        updateSyncStatus('attendance', 'error');
+                        setSyncError('attendance', describeSyncError(error));
+                        markInitialSnapshot('attendance');
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(false);
+                        }
+                    }
+                );
+            });
+        }
+
+        async function syncAttendanceWithFirebase() {
+            console.log('[Attendance] Manual sync requested.');
+            return startAttendanceListener();
         }
 
         async function pushAttendanceToFirebase(options = {}) {
@@ -4192,38 +4325,73 @@
             }
         }
 
-        async function syncPayrollWithFirebase() {
-            if (!ensureFirebaseReady('payroll')) return;
+        function startPayrollListener() {
+            if (!ensureFirebaseReady('payroll')) return Promise.resolve(false);
 
-            try {
-                const { collection, getDocs, doc, setDoc } = window.firestoreFunctions;
-                
-                // Get payroll records from Firebase
-                const snapshot = await getDocs(collection(window.firebaseDb, 'payroll'));
-                const firebasePayroll = [];
-                
-                snapshot.forEach(doc => {
-                    firebasePayroll.push({ id: doc.id, ...doc.data() });
-                });
-                
-                // If Firebase has data, use it (Firebase as source of truth)
-                if (firebasePayroll.length > 0) {
-                    payrollRecords = firebasePayroll;
-                    localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
-                    renderPayrollHistory();
-                    if (typeof updateComplianceRiskUI === 'function') {
-                        console.log('[ComplianceRisk] refresh after payroll sync');
-                        updateComplianceRiskUI();
-                    }
-                } else {
-                    // If no data in Firebase, push local data to Firebase
-                    await pushPayrollToFirebase();
-                }
-            } catch (error) {
-                console.error('Error syncing payroll with Firebase:', error);
-                updateSyncStatus('payroll', 'error');
-                setSyncError('payroll', describeSyncError(error));
+            updateSyncStatus('payroll', 'syncing');
+            console.log('[Payroll] Firestore listener start.');
+
+            if (typeof realtimeUnsubscribers.payroll === 'function') {
+                realtimeUnsubscribers.payroll();
             }
+
+            return new Promise(resolve => {
+                let resolved = false;
+                const { collection, onSnapshot } = window.firestoreFunctions;
+
+                realtimeUnsubscribers.payroll = onSnapshot(
+                    collection(window.firebaseDb, 'payroll'),
+                    (snapshot) => {
+                        console.log('[Payroll] Snapshot success.', { count: snapshot.size });
+                        const firebasePayroll = snapshot.docs.map(docSnap => ({
+                            id: docSnap.id,
+                            ...docSnap.data()
+                        }));
+
+                        if (snapshot.empty && payrollRecords.length > 0 && !payrollSeeded) {
+                            console.log('[Payroll] Remote empty, seeding from local state.');
+                            payrollSeeded = true;
+                            pushPayrollToFirebase().catch(error => {
+                                console.error('[Payroll] Failed to seed remote data:', error);
+                            });
+                        } else if (!snapshot.empty) {
+                            payrollRecords = firebasePayroll;
+                            localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
+                            console.log('[Payroll] State updated.', { total: payrollRecords.length });
+                            renderPayrollHistory();
+                            updatePayrollSummary();
+                            if (typeof updateComplianceRiskUI === 'function') {
+                                console.log('[ComplianceRisk] refresh after payroll snapshot');
+                                updateComplianceRiskUI();
+                            }
+                            updateSalaryTrendChart();
+                            requestDashboardRefresh('payroll');
+                        }
+
+                        updateSyncStatus('payroll', 'synced');
+                        markInitialSnapshot('payroll');
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(true);
+                        }
+                    },
+                    (error) => {
+                        console.error('[Payroll] Snapshot failure:', error);
+                        updateSyncStatus('payroll', 'error');
+                        setSyncError('payroll', describeSyncError(error));
+                        markInitialSnapshot('payroll');
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(false);
+                        }
+                    }
+                );
+            });
+        }
+
+        async function syncPayrollWithFirebase() {
+            console.log('[Payroll] Manual sync requested.');
+            return startPayrollListener();
         }
 
         async function pushPayrollToFirebase(options = {}) {
@@ -4383,7 +4551,7 @@
             } else if (sectionId === 'compliance-manager') {
                 updateComplianceWidgets();
             } else if (sectionId === 'dashboard') {
-                loadDashboardData();
+                requestDashboardRefresh('navigate-dashboard');
             }
         }
 
@@ -6202,6 +6370,11 @@
 
         // Dashboard Functions
         function loadDashboardData() {
+            console.log('[Dashboard] Render start.', {
+                employees: employees.length,
+                payrollRecords: payrollRecords.length,
+                attendanceDates: Object.keys(attendanceRecords).length
+            });
             const totalEmployees = employees.length;
             const activeEmployees = employees.filter(emp => emp.status === 'active').length;
 
@@ -6252,6 +6425,7 @@
             updateSalaryTrendChart();
             renderAttendanceHeatmap();
             fetchNotifications();
+            console.log('[Dashboard] Render complete.');
         }
 
         function updateComplianceWidgets() {
@@ -6356,38 +6530,72 @@
             }
         }
 
-        async function fetchNotifications() {
+        function startNotificationsListener() {
             if (!isFirebaseAvailable()) {
                 renderPayrollAnomalies();
-                return;
+                markInitialSnapshot('notifications');
+                return Promise.resolve(false);
             }
 
             const listElement = document.getElementById('anomaly-list');
             const countElement = document.getElementById('anomaly-count');
-            if (!listElement) return;
+            if (!listElement) {
+                markInitialSnapshot('notifications');
+                return Promise.resolve(false);
+            }
+
+            if (typeof realtimeUnsubscribers.notifications === 'function') {
+                markInitialSnapshot('notifications');
+                return Promise.resolve(true);
+            }
 
             listElement.innerHTML = '<div class="anomaly-empty">Loading notifications...</div>';
+            console.log('[Notifications] Firestore listener start.');
 
-            try {
-                const { collection, getDocs } = window.firestoreFunctions;
-                const snapshot = await getDocs(collection(window.firebaseDb, 'notifications'));
-                const notifications = snapshot.docs.map(docSnap => ({
-                    id: docSnap.id,
-                    ...docSnap.data()
-                }));
+            return new Promise(resolve => {
+                let resolved = false;
+                const { collection, onSnapshot } = window.firestoreFunctions;
 
-                notifications.sort((a, b) => {
-                    const aTime = a.timestamp?.toMillis ? a.timestamp.toMillis() : new Date(a.timestamp || 0).getTime();
-                    const bTime = b.timestamp?.toMillis ? b.timestamp.toMillis() : new Date(b.timestamp || 0).getTime();
-                    return bTime - aTime;
-                });
+                realtimeUnsubscribers.notifications = onSnapshot(
+                    collection(window.firebaseDb, 'notifications'),
+                    (snapshot) => {
+                        console.log('[Notifications] Snapshot success.', { count: snapshot.size });
+                        const notifications = snapshot.docs.map(docSnap => ({
+                            id: docSnap.id,
+                            ...docSnap.data()
+                        }));
 
-                renderNotifications(notifications);
-                if (countElement) countElement.textContent = notifications.length;
-            } catch (error) {
-                console.error('Failed to load notifications', error);
-                listElement.innerHTML = '<div class="anomaly-empty">Unable to load notifications.</div>';
-            }
+                        notifications.sort((a, b) => {
+                            const aTime = a.timestamp?.toMillis ? a.timestamp.toMillis() : new Date(a.timestamp || 0).getTime();
+                            const bTime = b.timestamp?.toMillis ? b.timestamp.toMillis() : new Date(b.timestamp || 0).getTime();
+                            return bTime - aTime;
+                        });
+
+                        renderNotifications(notifications);
+                        if (countElement) countElement.textContent = notifications.length;
+                        console.log('[Notifications] State updated.', { total: notifications.length });
+
+                        markInitialSnapshot('notifications');
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(true);
+                        }
+                    },
+                    (error) => {
+                        console.error('[Notifications] Snapshot failure:', error);
+                        listElement.innerHTML = '<div class="anomaly-empty">Unable to load notifications.</div>';
+                        markInitialSnapshot('notifications');
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(false);
+                        }
+                    }
+                );
+            });
+        }
+
+        function fetchNotifications() {
+            return startNotificationsListener();
         }
 
         function renderNotifications(notifications = []) {
@@ -6782,7 +6990,7 @@ Payment Method: ${record.paymentMethod}`);
         
         function updatePayrollSummary() {
             // This function is called when payroll records are updated
-            loadDashboardData();
+            requestDashboardRefresh('employee-import');
         }
 
         // Report Functions
@@ -7281,7 +7489,7 @@ Payment Method: ${record.paymentMethod}`);
                             renderEmployeeTable();
                             populatePayrollEmployeeDropdown();
                             populateReportEmployeeDropdown();
-                            loadDashboardData();
+                            requestDashboardRefresh('employee-update');
                             alert('Employees imported successfully!');
                         }
                     } catch (error) {
@@ -7602,6 +7810,9 @@ Payment Method: ${record.paymentMethod}`);
         window.shareAttendanceImage = shareAttendanceImage;
         window.renderPayrollAnomalies = renderPayrollAnomalies;
         window.filterEmployeesByStatus = filterEmployeesByStatus;
+        window.startRealtimeListeners = startRealtimeListeners;
+        window.teardownRealtimeListeners = teardownRealtimeListeners;
+        window.requestDashboardRefresh = requestDashboardRefresh;
         window.refreshEmployeeData = function() {
             renderEmployeeTable();
         };
