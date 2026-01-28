@@ -3935,7 +3935,6 @@
         };
 
         const PAYROLL_COLLECTION = 'payrollRecords';
-        const ENABLE_PAYROLL_FIREBASE_SYNC = false;
         let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || {};
         let monthlyReports = JSON.parse(localStorage.getItem('monthlyReports')) || {};
         let savedDays = JSON.parse(localStorage.getItem('savedDays')) || [];
@@ -6960,10 +6959,6 @@
         }
         
         async function savePayrollRunSnapshot({ period, paymentDate, records }) {
-            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
-                console.log('[Payroll] Run snapshot skipped (disabled).');
-                return;
-            }
             if (!ensureFirebaseReady('payroll')) return;
 
             try {
