@@ -1806,9 +1806,7 @@
             where,
             getDoc,
             addDoc,
-            onSnapshot,
-            orderBy,
-            serverTimestamp
+            onSnapshot
         } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
         import {
             getStorage,
@@ -1861,9 +1859,7 @@
                 where,
                 getDoc,
                 addDoc,
-                onSnapshot,
-                orderBy,
-                serverTimestamp
+                onSnapshot
             };
         }
 
@@ -3936,7 +3932,6 @@
         };
 
         const PAYROLL_COLLECTION = 'payrollRecords';
-        const ATTENDANCE_COLLECTION = 'attendanceRecords';
         let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || {};
         let monthlyReports = JSON.parse(localStorage.getItem('monthlyReports')) || {};
         let savedDays = JSON.parse(localStorage.getItem('savedDays')) || [];
@@ -3957,6 +3952,7 @@
         let pendingDashboardRefresh = false;
         let employeesSeeded = false;
         let attendanceSeeded = false;
+        let payrollSeeded = false;
         const realtimeUnsubscribers = {
             employees: null,
             attendance: null,
@@ -4008,6 +4004,7 @@
             pendingDashboardRefresh = false;
             employeesSeeded = false;
             attendanceSeeded = false;
+            payrollSeeded = false;
             Object.keys(initialSnapshotState).forEach(key => {
                 initialSnapshotState[key] = false;
             });
@@ -4116,6 +4113,10 @@
             } catch (error) {
                 console.error('[Realtime] Failed to start listeners:', error);
             }
+            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
+                markInitialSnapshot('payroll');
+            }
+
             requestDashboardRefresh('init');
             syncCompanySettingsWithFirebase();
         }
@@ -4125,7 +4126,7 @@
             const listeners = [
                 startEmployeesListener(),
                 startAttendanceListener(),
-                startPayrollListener(),
+                ...(ENABLE_PAYROLL_FIREBASE_SYNC ? [startPayrollListener()] : []),
                 startNotificationsListener()
             ];
 
@@ -4246,7 +4247,7 @@
                 const { collection, onSnapshot } = window.firestoreFunctions;
 
                 realtimeUnsubscribers.attendance = onSnapshot(
-                    collection(window.firebaseDb, ATTENDANCE_COLLECTION),
+                    collection(window.firebaseDb, 'attendance'),
                     (snapshot) => {
                         console.log('[Attendance] Snapshot success.', { count: snapshot.size });
                         const firebaseAttendance = {};
@@ -4325,6 +4326,11 @@
         }
 
         function startPayrollListener() {
+            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
+                console.log('[Payroll] Firestore sync disabled.');
+                markInitialSnapshot('payroll');
+                return Promise.resolve(false);
+            }
             if (!ensureFirebaseReady('payroll')) return Promise.resolve(false);
 
             updateSyncStatus('payroll', 'syncing');
@@ -4336,39 +4342,53 @@
 
             return new Promise(resolve => {
                 let resolved = false;
-                const { collection, onSnapshot, query, orderBy } = window.firestoreFunctions;
-                const payrollQuery = query(
-                    collection(window.firebaseDb, PAYROLL_COLLECTION),
-                    orderBy('generatedAt', 'desc')
-                );
+                const { collection, onSnapshot } = window.firestoreFunctions;
 
                 realtimeUnsubscribers.payroll = onSnapshot(
-                    payrollQuery,
+                    collection(window.firebaseDb, PAYROLL_COLLECTION),
                     (snapshot) => {
                         console.log('[Payroll] Snapshot success.', { count: snapshot.size });
-                        payrollRuns = snapshot.docs.map(docSnap => ({
+                        const firebasePayroll = snapshot.docs.map(docSnap => ({
                             id: docSnap.id,
                             ...docSnap.data()
                         }));
-                        payrollRecords = payrollRuns.flatMap(run => Array.isArray(run.payrollData) ? run.payrollData : []);
-                        localStorage.setItem('payrollRuns', JSON.stringify(payrollRuns));
-                        localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
-                        console.log('[Payroll] State updated.', {
-                            runs: payrollRuns.length,
-                            records: payrollRecords.length
-                        });
+                        const recordDocs = firebasePayroll.filter(doc => doc.type !== 'run');
+                        const runDocs = firebasePayroll.filter(doc => doc.type === 'run');
 
-                        renderPayrollHistory();
-                        updatePayrollSummary();
-                        if (typeof updateComplianceRiskUI === 'function') {
-                            console.log('[ComplianceRisk] refresh after payroll snapshot');
-                            updateComplianceRiskUI();
+                        if (snapshot.empty && payrollRecords.length > 0 && !payrollSeeded) {
+                            console.log('[Payroll] Remote empty, seeding from local state.');
+                            payrollSeeded = true;
+                            pushPayrollToFirebase().catch(error => {
+                                console.error('[Payroll] Failed to seed remote data:', error);
+                            });
+                        } else if (snapshot.empty) {
+                            payrollRecords = [];
+                            payrollRuns = [];
+                            localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
+                            localStorage.setItem('payrollRuns', JSON.stringify(payrollRuns));
+                            renderPayrollHistory();
+                            updatePayrollSummary();
+                            requestDashboardRefresh('payroll');
+                        } else {
+                            payrollRecords = recordDocs;
+                            payrollRuns = runDocs;
+                            localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
+                            localStorage.setItem('payrollRuns', JSON.stringify(payrollRuns));
+                            console.log('[Payroll] State updated.', {
+                                records: payrollRecords.length,
+                                runs: payrollRuns.length
+                            });
+                            renderPayrollHistory();
+                            updatePayrollSummary();
+                            if (typeof updateComplianceRiskUI === 'function') {
+                                console.log('[ComplianceRisk] refresh after payroll snapshot');
+                                updateComplianceRiskUI();
+                            }
+                            updateSalaryTrendChart();
+                            requestDashboardRefresh('payroll');
                         }
-                        updateSalaryTrendChart();
-                        requestDashboardRefresh('payroll');
 
                         updateSyncStatus('payroll', 'synced');
-                        setSyncError('payroll', '');
                         markInitialSnapshot('payroll');
                         if (!resolved) {
                             resolved = true;
@@ -4390,8 +4410,41 @@
         }
 
         async function syncPayrollWithFirebase() {
+            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
+                console.log('[Payroll] Manual sync skipped (disabled).');
+                return false;
+            }
             console.log('[Payroll] Manual sync requested.');
             return startPayrollListener();
+        }
+
+        async function pushPayrollToFirebase(options = {}) {
+            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
+                console.log('[Payroll] Write skipped (disabled).');
+                return;
+            }
+            if (!ensureFirebaseReady('payroll')) return;
+
+            const { replaceRemote = false } = options;
+
+            try {
+                const { doc, setDoc } = window.firestoreFunctions;
+
+                console.log('[Payroll] Write start.', { records: payrollRecords.length });
+                // Upsert local payroll records without deleting remote data
+                const upsertPromises = payrollRecords.map(record => {
+                    const recordId = record.id || generateId();
+                    const docRef = doc(window.firebaseDb, PAYROLL_COLLECTION, recordId);
+                    return setDoc(docRef, { ...record, id: recordId, type: 'record' });
+                });
+
+                await Promise.all(upsertPromises);
+                console.log('[Payroll] Write success.', { records: payrollRecords.length });
+            } catch (error) {
+                console.error('[Payroll] Write failure.', error);
+                updateSyncStatus('payroll', 'error');
+                setSyncError('payroll', describeSyncError(error));
+            }
         }
 
         async function syncCompanySettingsWithFirebase() {
@@ -6349,7 +6402,6 @@
         function loadDashboardData() {
             console.log('[Dashboard] Render start.', {
                 employees: employees.length,
-                payrollRuns: payrollRuns.length,
                 payrollRecords: payrollRecords.length,
                 attendanceDates: Object.keys(attendanceRecords).length
             });
@@ -6385,16 +6437,14 @@
             if (payrollTotalEmployees) payrollTotalEmployees.textContent = activeEmployees;
 
             const currentMonth = today.toISOString().slice(0, 7);
-            const processedThisMonth = payrollRuns.reduce((total, run) => {
-                const generatedAt = run.generatedAt?.toDate ? run.generatedAt.toDate() : new Date(run.generatedAt);
-                const runMonth = Number.isNaN(generatedAt.getTime())
-                    ? `${run.year}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
-                    : generatedAt.toISOString().slice(0, 7);
-                if (runMonth === currentMonth) {
-                    return total + (run.employeeCount ?? (Array.isArray(run.payrollData) ? run.payrollData.length : 0));
+            const processedThisMonth = payrollRecords.filter(record => {
+                const dateSource = record.paymentDate || record.createdAt;
+                if (dateSource) {
+                    const recordMonth = new Date(dateSource).toISOString().slice(0, 7);
+                    return recordMonth === currentMonth;
                 }
-                return total;
-            }, 0);
+                return record.period && record.period.startsWith(currentMonth);
+            }).length;
             const pendingPayroll = Math.max(activeEmployees - processedThisMonth, 0);
 
             const payrollStatus = pendingPayroll > 0 ? 'Needs Review' : 'On Track';
@@ -6938,8 +6988,9 @@
                     totalPayout,
                     generatedAt: typeof serverTimestamp === 'function' ? serverTimestamp() : new Date(),
                     status: 'Completed',
-                    payrollData: records,
-                    period
+                    records,
+                    period,
+                    type: 'run'
                 });
                 console.log('[Payroll] Run write success.', { id: docRef.id });
             } catch (error) {
@@ -6978,15 +7029,33 @@
             payrollRecords.push(payrollRecord);
             localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
             
+            const currentPeriodRecords = payrollRecords.filter(record => record.period === period);
+            // Sync with Firebase
+            await pushPayrollToFirebase();
             await savePayrollRunSnapshot({
                 period,
                 paymentDate,
-                records: [payrollRecord]
+                records: currentPeriodRecords
             });
             
             alert('Payroll record saved successfully!');
             renderPayrollHistory();
             updatePayrollSummary();
+        }
+        
+        function viewPayrollRecord(recordId) {
+            const record = payrollRecords.find(r => r.id === recordId);
+            if (record) {
+                alert(`Payroll Record Details:\n
+Employee: ${record.employeeName} (${record.employeeId})
+Period: ${record.period}
+Basic Salary: ${formatCurrency(record.basicSalary)}
+Allowances: ${formatCurrency(record.allowances)}
+Deductions: ${formatCurrency(record.deductions)}
+Net Salary: ${formatCurrency(record.netSalary)}
+Payment Date: ${record.paymentDate}
+Payment Method: ${record.paymentMethod}`);
+            }
         }
         
         function viewPayrollRecord(recordId) {
