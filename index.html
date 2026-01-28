@@ -3280,14 +3280,11 @@
                             <table id="payrollHistoryTable">
                                 <thead>
                                     <tr>
-                                        <th>Employee ID</th>
-                                        <th>Name</th>
-                                        <th>Period</th>
-                                        <th>Basic Salary</th>
-                                        <th>Allowances</th>
-                                        <th>Deductions</th>
-                                        <th>Net Salary</th>
-                                        <th>Payment Date</th>
+                                        <th>Month</th>
+                                        <th>Year</th>
+                                        <th>Employees</th>
+                                        <th>Total Payout</th>
+                                        <th>Generated</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -4310,14 +4307,12 @@
         async function pushAttendanceToFirebase(options = {}) {
             if (!ensureFirebaseReady('attendance')) return;
 
-            const { replaceRemote = false } = options;
-
             try {
                 const { doc, setDoc } = window.firestoreFunctions;
 
                 // Upsert local attendance records
                 const upsertPromises = Object.keys(attendanceRecords).map(date => {
-                    const docRef = doc(window.firebaseDb, 'attendance', date);
+                    const docRef = doc(window.firebaseDb, ATTENDANCE_COLLECTION, date);
                     return setDoc(docRef, attendanceRecords[date]);
                 });
 
@@ -6913,42 +6908,58 @@
         }
 
         // Payroll History Functions
+        function getPayrollRunDate(value) {
+            if (!value) return null;
+            if (typeof value?.toDate === 'function') {
+                return value.toDate();
+            }
+            const parsed = new Date(value);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        }
+
+        function formatPayrollRunDate(value) {
+            const parsed = getPayrollRunDate(value);
+            return parsed ? parsed.toLocaleDateString('en-GB') : '';
+        }
+
         function renderPayrollHistory() {
             const tableBody = document.getElementById('payrollHistoryBody');
             tableBody.innerHTML = '';
             
-            if (payrollRecords.length === 0) {
+            if (payrollRuns.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="10" style="text-align: center; padding: 20px;">
-                            No payroll records found
+                        <td colspan="7" style="text-align: center; padding: 20px;">
+                            No payroll runs found
                         </td>
                     </tr>
                 `;
                 return;
             }
             
-            // Sort by payment date (newest first)
-            const sortedRecords = payrollRecords.sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate));
+            const sortedRuns = payrollRuns.slice().sort((a, b) => {
+                const dateA = getPayrollRunDate(a.generatedAt);
+                const dateB = getPayrollRunDate(b.generatedAt);
+                const timeA = dateA ? dateA.getTime() : 0;
+                const timeB = dateB ? dateB.getTime() : 0;
+                return timeB - timeA;
+            });
             
-            sortedRecords.forEach(record => {
+            sortedRuns.forEach(run => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${record.employeeId}</td>
-                    <td>${record.employeeName}</td>
-                    <td>${record.period}</td>
-                    <td>${formatCurrency(record.basicSalary)}</td>
-                    <td>${formatCurrency(record.allowances)}</td>
-                    <td>${formatCurrency(record.deductions)}</td>
-                    <td>${formatCurrency(record.netSalary)}</td>
-                    <td>${record.paymentDate}</td>
-                    <td><span class="status active">Processed</span></td>
+                    <td>${run.month || '-'}</td>
+                    <td>${run.year || '-'}</td>
+                    <td>${run.employeeCount ?? 0}</td>
+                    <td>${formatCurrency(run.totalPayout ?? 0)}</td>
+                    <td>${formatPayrollRunDate(run.generatedAt) || '-'}</td>
+                    <td><span class="status active">${run.status || 'Completed'}</span></td>
                     <td>
                         <div class="table-actions">
-                            <button class="table-action-btn view" onclick="viewPayrollRecord('${record.id}')">
+                            <button class="table-action-btn view" onclick="viewPayrollRecord('${run.id}')">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            <button class="table-action-btn delete" onclick="deletePayrollRecord('${record.id}')">
+                            <button class="table-action-btn delete" onclick="deletePayrollRecord('${run.id}')">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -7047,17 +7058,35 @@ Payment Method: ${record.paymentMethod}`);
             }
         }
         
-        function deletePayrollRecord(recordId) {
-            if (confirm('Are you sure you want to delete this payroll record?')) {
-                payrollRecords = payrollRecords.filter(r => r.id !== recordId);
-                localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
-                
-                // Sync with Firebase
-                pushPayrollToFirebase();
-                
-                renderPayrollHistory();
-                updatePayrollSummary();
-                alert('Payroll record deleted successfully!');
+        function viewPayrollRecord(recordId) {
+            const run = payrollRuns.find(r => r.id === recordId);
+            if (run) {
+                const payrollList = Array.isArray(run.payrollData) ? run.payrollData : [];
+                const employeeNames = payrollList.map(record => `${record.employeeName || 'Unknown'} (${record.employeeId || 'N/A'})`);
+                const employeeSummary = employeeNames.length ? employeeNames.join(', ') : 'No employees recorded';
+
+                alert(`Payroll Run Details:\n
+Month: ${run.month || '-'} ${run.year || ''}
+Employees: ${run.employeeCount ?? 0}
+Total Payout: ${formatCurrency(run.totalPayout ?? 0)}
+Generated: ${formatPayrollRunDate(run.generatedAt) || '-'}
+Status: ${run.status || 'Completed'}
+Employees: ${employeeSummary}`);
+            }
+        }
+        
+        async function deletePayrollRecord(recordId) {
+            if (!ensureFirebaseReady('payroll')) return;
+            if (confirm('Are you sure you want to delete this payroll run?')) {
+                try {
+                    const { doc, deleteDoc } = window.firestoreFunctions;
+                    await deleteDoc(doc(window.firebaseDb, PAYROLL_COLLECTION, recordId));
+                    alert('Payroll run deleted successfully!');
+                } catch (error) {
+                    console.error('[Payroll] Delete failed:', error);
+                    updateSyncStatus('payroll', 'error');
+                    setSyncError('payroll', describeSyncError(error));
+                }
             }
         }
         

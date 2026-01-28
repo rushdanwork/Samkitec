@@ -212,7 +212,11 @@ export const runComplianceDeepScan = onCall(async (request) => {
   const payrollSnapshot = await db.collection("payrollRecords").get();
   const employeesSnapshot = await db.collection("employees").get();
 
-  const payroll = payrollSnapshot.docs.map((doc) => ({ employeeId: doc.id, ...doc.data() }));
+  const payroll = payrollSnapshot.docs.flatMap((doc) => {
+    const data = doc.data();
+    const payrollData = Array.isArray(data.payrollData) ? data.payrollData : [];
+    return payrollData.map((record) => ({ ...record, payrollRunId: doc.id }));
+  });
   const employees = employeesSnapshot.docs.map((doc) => ({ employeeId: doc.id, ...doc.data() }));
 
   const report = buildComplianceReport({ payroll, employees });
@@ -238,7 +242,11 @@ export const scheduledComplianceDeepScan = onSchedule(
     const payrollSnapshot = await db.collection("payrollRecords").get();
     const employeesSnapshot = await db.collection("employees").get();
 
-    const payroll = payrollSnapshot.docs.map((doc) => ({ employeeId: doc.id, ...doc.data() }));
+    const payroll = payrollSnapshot.docs.flatMap((doc) => {
+      const data = doc.data();
+      const payrollData = Array.isArray(data.payrollData) ? data.payrollData : [];
+      return payrollData.map((record) => ({ ...record, payrollRunId: doc.id }));
+    });
     const employees = employeesSnapshot.docs.map((doc) => ({ employeeId: doc.id, ...doc.data() }));
 
     const report = buildComplianceReport({ payroll, employees });
