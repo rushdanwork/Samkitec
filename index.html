@@ -4118,9 +4118,6 @@
             } catch (error) {
                 console.error('[Realtime] Failed to start listeners:', error);
             }
-            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
-                markInitialSnapshot('payroll');
-            }
 
             requestDashboardRefresh('init');
             syncCompanySettingsWithFirebase();
@@ -4131,7 +4128,7 @@
             const listeners = [
                 startEmployeesListener(),
                 startAttendanceListener(),
-                ...(ENABLE_PAYROLL_FIREBASE_SYNC ? [startPayrollListener()] : []),
+                startPayrollListener(),
                 startNotificationsListener()
             ];
 
@@ -4331,11 +4328,6 @@
         }
 
         function startPayrollListener() {
-            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
-                console.log('[Payroll] Firestore sync disabled.');
-                markInitialSnapshot('payroll');
-                return Promise.resolve(false);
-            }
             if (!ensureFirebaseReady('payroll')) return Promise.resolve(false);
 
             updateSyncStatus('payroll', 'syncing');
@@ -4415,19 +4407,11 @@
         }
 
         async function syncPayrollWithFirebase() {
-            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
-                console.log('[Payroll] Manual sync skipped (disabled).');
-                return false;
-            }
             console.log('[Payroll] Manual sync requested.');
             return startPayrollListener();
         }
 
         async function pushPayrollToFirebase(options = {}) {
-            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
-                console.log('[Payroll] Write skipped (disabled).');
-                return;
-            }
             if (!ensureFirebaseReady('payroll')) return;
 
             const { replaceRemote = false } = options;
