@@ -24,6 +24,5 @@ export const buildPayrollRunPayload = ({
 
 export const savePayroll = async ({ month, year, payrollData }) => {
   const payload = buildPayrollRunPayload({ month, year, payrollData });
-  const runId = await savePayrollRun(payload);
-  return runId;
+  return savePayrollRun(payload);
 };
