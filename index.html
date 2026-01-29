@@ -3271,9 +3271,14 @@
                 <div class="card" style="margin-top: 25px;">
                     <div class="card-header">
                         <h3 class="card-title">Payroll History</h3>
-                        <button class="btn btn-outline btn-sm" onclick="refreshPayrollHistory()">
-                            <i class="fas fa-sync-alt"></i> Refresh
-                        </button>
+                        <div class="header-actions">
+                            <button class="btn btn-outline btn-sm" onclick="refreshPayrollHistory()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <button class="btn btn-outline btn-sm" onclick="testPayrollWrite()">
+                                <i class="fas fa-vial"></i> Test Write
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="table-container">
