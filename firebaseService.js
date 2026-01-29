@@ -5,13 +5,11 @@ import { getFirestore, serverTimestamp } from 'firebase/firestore';
 let firebaseApp;
 let firestoreDb;
 let firebaseAuth;
-export let db;
 
 export const initializeFirebase = (config) => {
   if (!firebaseApp) {
     firebaseApp = initializeApp(config);
     firestoreDb = getFirestore(firebaseApp);
-    db = firestoreDb;
     firebaseAuth = getAuth(firebaseApp);
   }
   return { app: firebaseApp, db: firestoreDb, auth: firebaseAuth };

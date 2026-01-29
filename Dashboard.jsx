@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 
-import { db } from './firebaseService.js';
+import { getFirestoreDb } from './firebaseService.js';
 
 const PAYROLL_COLLECTION = 'payrollRecords';
 const ATTENDANCE_COLLECTION = 'attendanceRecords';
@@ -23,9 +23,9 @@ export default function Dashboard() {
   const [employees, setEmployees] = useState([]);
   const [complianceFlags, setComplianceFlags] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [realtimeReady, setRealtimeReady] = useState(false);
 
   useEffect(() => {
+    const db = getFirestoreDb();
     const unsubscribers = [];
 
     unsubscribers.push(
@@ -33,7 +33,6 @@ export default function Dashboard() {
         query(collection(db, PAYROLL_COLLECTION), orderBy('generatedAt', 'desc')),
         (snapshot) => {
           setPayrollRuns(snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
-          setRealtimeReady(true);
         }
       )
     );
@@ -99,7 +98,7 @@ export default function Dashboard() {
     };
   }, [attendanceRecords, complianceFlags.length, employees, payrollRuns]);
 
-  if (loading || !realtimeReady) {
+  if (loading) {
     return <div className="dashboard-loading">Loading dashboard...</div>;
   }
 
