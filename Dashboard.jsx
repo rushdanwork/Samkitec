@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 
-import { db } from './firebaseService.js';
+import { getFirestoreDb } from './firebaseService.js';
 
 const PAYROLL_COLLECTION = 'payrollRecords';
 const ATTENDANCE_COLLECTION = 'attendanceRecords';
@@ -25,12 +25,16 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const db = getFirestoreDb();
     const unsubscribers = [];
 
     unsubscribers.push(
-      onSnapshot(collection(db, PAYROLL_COLLECTION), (snapshot) => {
-        setPayrollRuns(snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
-      })
+      onSnapshot(
+        query(collection(db, PAYROLL_COLLECTION), orderBy('generatedAt', 'desc')),
+        (snapshot) => {
+          setPayrollRuns(snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
+        }
+      )
     );
 
     unsubscribers.push(

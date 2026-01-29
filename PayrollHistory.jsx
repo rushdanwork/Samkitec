@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 
-import { db } from './firebaseService.js';
+import { getFirestoreDb } from './firebaseService.js';
 
 const PAYROLL_COLLECTION = 'payrollRecords';
 
@@ -23,8 +23,14 @@ export default function PayrollHistory() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(
+    const db = getFirestoreDb();
+    const payrollQuery = query(
       collection(db, PAYROLL_COLLECTION),
+      orderBy('generatedAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(
+      payrollQuery,
       (snapshot) => {
         setPayrollRuns(snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
         setLoading(false);
