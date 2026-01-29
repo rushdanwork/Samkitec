@@ -4747,7 +4747,7 @@
             // Sync button
             document.getElementById('sync-payroll-btn').addEventListener('click', function() {
                 syncEmployeesWithFirebase();
-                syncPayrollWithFirebase();
+                savePayrollRun(generateFinalPayrollData());
             });
         }
 
