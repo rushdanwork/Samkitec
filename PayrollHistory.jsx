@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 
 import { getFirestoreDb } from './firebaseService.js';
+import Header from './components/Header.jsx';
 
 const PAYROLL_COLLECTION = 'payrollRecords';
 
@@ -57,29 +58,34 @@ export default function PayrollHistory() {
   }
 
   return (
-    <table className="payroll-history">
-      <thead>
-        <tr>
-          <th>Month</th>
-          <th>Year</th>
-          <th>Employees</th>
-          <th>Total Payout</th>
-          <th>Generated</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {payrollRuns.map((run) => (
-          <tr key={run.id}>
-            <td>{run.month}</td>
-            <td>{run.year}</td>
-            <td>{run.employeeCount ?? 0}</td>
-            <td>{formatCurrency(run.totalPayout ?? 0)}</td>
-            <td>{formatDate(run.generatedAt) || '-'}</td>
-            <td>{run.status || 'Completed'}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="min-h-screen bg-slate-50">
+      <Header />
+      <main className="px-6 py-8">
+        <table className="payroll-history">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Year</th>
+              <th>Employees</th>
+              <th>Total Payout</th>
+              <th>Generated</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {payrollRuns.map((run) => (
+              <tr key={run.id}>
+                <td>{run.month}</td>
+                <td>{run.year}</td>
+                <td>{run.employeeCount ?? 0}</td>
+                <td>{formatCurrency(run.totalPayout ?? 0)}</td>
+                <td>{formatDate(run.generatedAt) || '-'}</td>
+                <td>{run.status || 'Completed'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </main>
+    </div>
   );
 }
