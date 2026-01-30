@@ -65,6 +65,13 @@
             max-width: 90%;
             transition: all 0.3s ease;
         }
+
+        .login-logo {
+            width: 140px;
+            height: auto;
+            display: block;
+            margin: 0 auto 18px;
+        }
         
         .login-box h2 {
             text-align: center;
@@ -345,6 +352,17 @@
             padding-bottom: 20px;
             border-bottom: 1px solid rgba(0, 0, 0, 0.05);
         }
+
+        .header-logo {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 12px;
+        }
+
+        .header-logo__image {
+            width: 44px;
+            height: auto;
+        }
         
         .header h1 {
             font-size: 2rem;
@@ -352,6 +370,7 @@
             font-weight: 700;
             display: flex;
             align-items: center;
+            gap: 12px;
         }
         
         .header h1 i {
@@ -371,6 +390,44 @@
         
         .user-info:hover {
             transform: translateY(-2px);
+        }
+
+        .splash-screen {
+            position: fixed;
+            inset: 0;
+            background: #ffffff;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .splash-screen.active {
+            display: flex;
+        }
+
+        .splash-logo {
+            width: 180px;
+            height: auto;
+        }
+
+        @keyframes fadeZoom {
+            0% {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: scale(1.15);
+            }
+        }
+
+        .animate-fadeZoom {
+            animation: fadeZoom 2s ease-in-out forwards;
         }
         
         /* Action Bar */
@@ -2130,15 +2187,22 @@
                 document.getElementById('logged-in-user').textContent = user.email;
                 // Hide login page and show application
                 document.getElementById('login-page').style.display = 'none';
-                document.getElementById('app-container').style.display = 'flex';
-                setFirebaseConnectionState('success', 'Authenticated with Firebase.');
-                // Initialize the application
-                await initializeApplication();
+                document.getElementById('app-container').style.display = 'none';
+                showSplashScreen(async () => {
+                    document.getElementById('app-container').style.display = 'flex';
+                    setFirebaseConnectionState('success', 'Authenticated with Firebase.');
+                    // Initialize the application
+                    await initializeApplication();
+                });
             } else {
                 clearAuthenticatedFirebaseContext();
                 console.log("No user logged in.");
                 if (typeof window.teardownRealtimeListeners === 'function') {
                     window.teardownRealtimeListeners();
+                }
+                const splashScreen = document.getElementById('splash-screen');
+                if (splashScreen) {
+                    splashScreen.classList.remove('active');
                 }
                 // Show login page and hide application
                 document.getElementById('login-page').style.display = 'flex';
@@ -2154,7 +2218,8 @@
         <div class="login-box">
             <!-- Login Form -->
             <div id="login-form">
-                <div class="login-title">Samkitec Resources</div>
+                <img src="/eye_logo.png" alt="Company logo" class="login-logo">
+                <div class="login-title">PayrollPro Resources</div>
                 <h2>Login</h2>
                 <div class="form-group">
                     <label for="login-email">Email</label>
@@ -2176,7 +2241,8 @@
             
             <!-- Signup Form -->
             <div id="signup-form" class="hidden">
-                <div class="login-title">Samkitec Resources</div>
+                <img src="/eye_logo.png" alt="Company logo" class="login-logo">
+                <div class="login-title">PayrollPro Resources</div>
                 <h2>Sign Up</h2>
                 <div class="form-group">
                     <label for="signup-email">Email</label>
@@ -2219,6 +2285,11 @@
                 </p>
             </div>
         </div>
+    </div>
+
+    <!-- Splash Screen -->
+    <div id="splash-screen" class="splash-screen" aria-hidden="true">
+        <img src="/eye_logo.png" alt="Company logo" class="splash-logo animate-fadeZoom">
     </div>
 
     <!-- Main Application (Initially hidden) -->
@@ -3561,7 +3632,7 @@
                             <div class="card-body">
                                 <div class="form-group">
                                     <label class="form-label">Company Name</label>
-                                    <input type="text" class="form-control" id="companyName" name="companyName" value="Samkitec Resources">
+                                    <input type="text" class="form-control" id="companyName" name="companyName" value="PayrollPro Resources">
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Company Address</label>
@@ -3944,7 +4015,7 @@
         let payrollRuns = JSON.parse(localStorage.getItem('payrollRuns')) || [];
         let statutoryPayments = JSON.parse(localStorage.getItem('statutoryPayments')) || {};
         let companySettings = JSON.parse(localStorage.getItem('companySettings')) || {
-            companyName: "Samkitec Resources",
+            companyName: "PayrollPro Resources",
             companyAddress: "Pyrogreen Energy Private Limited - FLAT NO 304, SAHITI SRI VIDHYA PETAL, Street No-1, Patrika Nagar, HITEC City, Hyderabad, Telangana 500081",
             defaultWorkingDays: 30,
             defaultPF: 12,
@@ -4015,8 +4086,58 @@
             });
         }
 
+        function injectHeaderLogos() {
+            document.querySelectorAll('.header h1').forEach((heading) => {
+                if (heading.querySelector('.header-logo')) {
+                    return;
+                }
+
+                const link = document.createElement('a');
+                link.href = '#';
+                link.className = 'header-logo';
+                link.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    showSection('dashboard');
+                });
+
+                const logo = document.createElement('img');
+                logo.src = '/eye_logo.png';
+                logo.alt = 'Company logo';
+                logo.className = 'header-logo__image';
+
+                link.appendChild(logo);
+                heading.prepend(link);
+            });
+        }
+
+        function showSplashScreen(onComplete) {
+            const splash = document.getElementById('splash-screen');
+            if (!splash) {
+                if (typeof onComplete === 'function') {
+                    onComplete();
+                }
+                return;
+            }
+
+            const logo = splash.querySelector('.splash-logo');
+            splash.classList.add('active');
+            if (logo) {
+                logo.classList.remove('animate-fadeZoom');
+                void logo.offsetWidth;
+                logo.classList.add('animate-fadeZoom');
+            }
+
+            setTimeout(() => {
+                splash.classList.remove('active');
+                if (typeof onComplete === 'function') {
+                    onComplete();
+                }
+            }, 2000);
+        }
+
         // Initialize the application
         async function initializeApplication() {
+            injectHeaderLogos();
             loadEmployeesFromStorage();
             setupEmployeeEventListeners();
             renderEmployeeTable();
@@ -4118,9 +4239,6 @@
             } catch (error) {
                 console.error('[Realtime] Failed to start listeners:', error);
             }
-            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
-                markInitialSnapshot('payroll');
-            }
 
             requestDashboardRefresh('init');
             syncCompanySettingsWithFirebase();
@@ -4131,7 +4249,7 @@
             const listeners = [
                 startEmployeesListener(),
                 startAttendanceListener(),
-                ...(ENABLE_PAYROLL_FIREBASE_SYNC ? [startPayrollListener()] : []),
+                startPayrollListener(),
                 startNotificationsListener()
             ];
 
@@ -4331,11 +4449,6 @@
         }
 
         function startPayrollListener() {
-            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
-                console.log('[Payroll] Firestore sync disabled.');
-                markInitialSnapshot('payroll');
-                return Promise.resolve(false);
-            }
             if (!ensureFirebaseReady('payroll')) return Promise.resolve(false);
 
             updateSyncStatus('payroll', 'syncing');
@@ -4415,19 +4528,11 @@
         }
 
         async function syncPayrollWithFirebase() {
-            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
-                console.log('[Payroll] Manual sync skipped (disabled).');
-                return false;
-            }
             console.log('[Payroll] Manual sync requested.');
             return startPayrollListener();
         }
 
         async function pushPayrollToFirebase(options = {}) {
-            if (!ENABLE_PAYROLL_FIREBASE_SYNC) {
-                console.log('[Payroll] Write skipped (disabled).');
-                return;
-            }
             if (!ensureFirebaseReady('payroll')) return;
 
             const { replaceRemote = false } = options;

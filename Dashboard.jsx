@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 
 import { getFirestoreDb } from './firebaseService.js';
+import Header from './components/Header.jsx';
 
 const PAYROLL_COLLECTION = 'payrollRecords';
 const ATTENDANCE_COLLECTION = 'attendanceRecords';
@@ -103,35 +104,40 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="dashboard-grid">
-      <div className="dashboard-card">
-        <h4>Total Employees</h4>
-        <p>{metrics.totalEmployees}</p>
-      </div>
-      <div className="dashboard-card">
-        <h4>Attendance Today</h4>
-        <p>
-          {metrics.presentCount} present · {metrics.attendanceRate}% checked in
-        </p>
-      </div>
-      <div className="dashboard-card">
-        <h4>Payroll Status</h4>
-        <p>
-          Processed {metrics.processedThisMonth} · Pending {metrics.pendingPayroll}
-        </p>
-      </div>
-      <div className="dashboard-card">
-        <h4>Last Payroll Run</h4>
-        <p>
-          {metrics.lastRun
-            ? `${metrics.lastRun.month} ${metrics.lastRun.year} · ${metrics.lastRun.employeeCount} employees`
-            : 'No runs yet'}
-        </p>
-      </div>
-      <div className="dashboard-card">
-        <h4>Compliance Issues</h4>
-        <p>{metrics.complianceCount}</p>
-      </div>
+    <div className="min-h-screen bg-slate-50">
+      <Header />
+      <main className="px-6 py-8">
+        <div className="dashboard-grid">
+          <div className="dashboard-card">
+            <h4>Total Employees</h4>
+            <p>{metrics.totalEmployees}</p>
+          </div>
+          <div className="dashboard-card">
+            <h4>Attendance Today</h4>
+            <p>
+              {metrics.presentCount} present · {metrics.attendanceRate}% checked in
+            </p>
+          </div>
+          <div className="dashboard-card">
+            <h4>Payroll Status</h4>
+            <p>
+              Processed {metrics.processedThisMonth} · Pending {metrics.pendingPayroll}
+            </p>
+          </div>
+          <div className="dashboard-card">
+            <h4>Last Payroll Run</h4>
+            <p>
+              {metrics.lastRun
+                ? `${metrics.lastRun.month} ${metrics.lastRun.year} · ${metrics.lastRun.employeeCount} employees`
+                : 'No runs yet'}
+            </p>
+          </div>
+          <div className="dashboard-card">
+            <h4>Compliance Issues</h4>
+            <p>{metrics.complianceCount}</p>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
