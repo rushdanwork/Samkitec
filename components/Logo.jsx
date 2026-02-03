@@ -1,3 +1,5 @@
 export default function Logo() {
-  return <img src="./assets/eye_logo.png" alt="eye logo" className="h-10 w-auto" />;
+  const logoSrc = `${import.meta.env.BASE_URL}assets/logo_eye.png`;
+
+  return <img src={logoSrc} alt="eye logo" className="h-12 w-auto" />;
 }
