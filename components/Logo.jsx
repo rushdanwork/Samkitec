@@ -1,13 +1,3 @@
-import PropTypes from 'prop-types';
-
-export default function Logo({ size = '10', className = '' }) {
-  const sizeClass = size ? `w-${size}` : '';
-  const classes = [sizeClass, className].filter(Boolean).join(' ');
-
-  return <img src="/eye_logo.png" alt="Samkitec logo" className={classes} />;
+export default function Logo() {
+  return <img src="./assets/eye_logo.png" alt="eye logo" className="h-10 w-auto" />;
 }
-
-Logo.propTypes = {
-  size: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-  className: PropTypes.string,
-};
