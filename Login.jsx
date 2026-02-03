@@ -5,6 +5,7 @@ export default function Login({ onLogin }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const logoSrc = `${import.meta.env.BASE_URL}assets/logo_eye.png`;
 
   const handleSubmit = async (event) => {
     event.preventDefault();

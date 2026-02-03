@@ -2,6 +2,8 @@ import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 
 export default function Header({ children }) {
+  const logoSrc = `${import.meta.env.BASE_URL}assets/logo_eye.png`;
+
   return (
     <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
       <Link to="/dashboard" className="flex items-center gap-3">
