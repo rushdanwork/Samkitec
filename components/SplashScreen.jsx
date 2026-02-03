@@ -11,7 +11,7 @@ export default function SplashScreen() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-white">
-      <img src="./assets/eye_logo.png" alt="eye logo" className="h-10 w-auto" />
+      <img src="./assets/logo_eye.png" alt="eye logo" className="h-12 w-auto" />
     </div>
   );
 }
