@@ -1,8 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import Logo from './Logo.jsx';
-
 export default function SplashScreen() {
   const navigate = useNavigate();
 
@@ -13,7 +11,7 @@ export default function SplashScreen() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-white">
-      <Logo size="32" className="animate-fadeZoom" />
+      <img src="./assets/eye_logo.png" alt="eye logo" className="h-10 w-auto" />
     </div>
   );
 }

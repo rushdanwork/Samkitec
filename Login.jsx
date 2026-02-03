@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import Logo from './components/Logo.jsx';
-
 export default function Login({ onLogin }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -23,7 +21,7 @@ export default function Login({ onLogin }) {
         onSubmit={handleSubmit}
       >
         <div className="mb-6 flex justify-center">
-          <Logo size="32" className="mx-auto" />
+          <img src="./assets/eye_logo.png" alt="eye logo" className="h-10 w-auto" />
         </div>
         <h2 className="mb-6 text-center text-2xl font-semibold">Login</h2>
         <label className="mb-2 block text-sm font-medium" htmlFor="login-email">
