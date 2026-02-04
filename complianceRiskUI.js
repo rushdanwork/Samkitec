@@ -45,6 +45,7 @@
 
         const scoreEl = document.getElementById('compliance-score-value');
         const lastScanEl = document.getElementById('compliance-last-scan');
+        const lastScanChipEl = document.getElementById('compliance-summary-last-scan');
         const scores = reports.map((report) => report.summary?.riskScore ?? 0);
         const averageScore = scores.length
             ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
@@ -61,7 +62,9 @@
                 return bDate - aDate;
             })[0];
 
-        if (lastScanEl) lastScanEl.textContent = formatTimestamp(lastEvaluated);
+        const formattedLastScan = formatTimestamp(lastEvaluated);
+        if (lastScanEl) lastScanEl.textContent = formattedLastScan;
+        if (lastScanChipEl) lastScanChipEl.textContent = formattedLastScan;
     };
 
     const iconForSeverity = (severity) => {
@@ -172,6 +175,7 @@
                 </div>
                 <div>${violation.message}</div>
                 <div class="text-muted">Suggested fix: ${violation.recommendedFix}</div>
+                <div class="text-muted">Logged: ${formatTimestamp(violation.timestamp)}</div>
             `;
             listContainer.appendChild(item);
         });
@@ -210,7 +214,7 @@
                         .catch(() => {})
                         .finally(() => {
                             runButton.disabled = false;
-                            runButton.innerHTML = '<i class="fas fa-wave-square"></i> Re-run Compliance Scan';
+                            runButton.innerHTML = '<i class="fas fa-wave-square"></i> Run Compliance Scan';
                         });
                 }
             };
