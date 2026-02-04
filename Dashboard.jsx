@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 
-import { getFirestoreDb } from './firebaseService.js';
+import { getFirestoreDb, listenComplianceSummary } from './firebaseService.js';
 import Header from './components/Header.jsx';
 
 const PAYROLL_COLLECTION = 'payrollRecords';
 const ATTENDANCE_COLLECTION = 'attendanceRecords';
 const EMPLOYEES_COLLECTION = 'employees';
-const COMPLIANCE_COLLECTION = 'complianceFlags';
-
 const normalizeDateKey = (date = new Date()) => date.toISOString().split('T')[0];
 
 const parseTimestamp = (value) => {
@@ -22,7 +20,7 @@ export default function Dashboard() {
   const [payrollRuns, setPayrollRuns] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState({});
   const [employees, setEmployees] = useState([]);
-  const [complianceFlags, setComplianceFlags] = useState([]);
+  const [complianceReports, setComplianceReports] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -55,8 +53,8 @@ export default function Dashboard() {
     );
 
     unsubscribers.push(
-      onSnapshot(collection(db, COMPLIANCE_COLLECTION), (snapshot) => {
-        setComplianceFlags(snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
+      listenComplianceSummary((reports) => {
+        setComplianceReports(reports);
       })
     );
 
@@ -95,9 +93,23 @@ export default function Dashboard() {
       processedThisMonth,
       pendingPayroll,
       lastRun,
-      complianceCount: complianceFlags.length,
+      complianceCount: complianceReports.length,
+      complianceRiskCounts: complianceReports.reduce(
+        (acc, report) => {
+          const level = report.summary?.riskLevel;
+          if (level === 'High') acc.high += 1;
+          if (level === 'Medium') acc.medium += 1;
+          if (level === 'Low') acc.low += 1;
+          return acc;
+        },
+        { high: 0, medium: 0, low: 0 }
+      ),
+      lastComplianceScan: complianceReports
+        .map((report) => parseTimestamp(report.summary?.lastEvaluated))
+        .filter(Boolean)
+        .sort((a, b) => b.getTime() - a.getTime())[0],
     };
-  }, [attendanceRecords, complianceFlags.length, employees, payrollRuns]);
+  }, [attendanceRecords, complianceReports, employees, payrollRuns]);
 
   if (loading) {
     return <div className="dashboard-loading">Loading dashboard...</div>;
@@ -135,6 +147,17 @@ export default function Dashboard() {
           <div className="dashboard-card">
             <h4>Compliance Issues</h4>
             <p>{metrics.complianceCount}</p>
+          </div>
+          <div className="dashboard-card">
+            <h4>Compliance Risk Overview</h4>
+            <p>
+              High {metrics.complianceRiskCounts.high} · Medium {metrics.complianceRiskCounts.medium} · Low{' '}
+              {metrics.complianceRiskCounts.low}
+            </p>
+            <small>
+              Last scan:{' '}
+              {metrics.lastComplianceScan ? metrics.lastComplianceScan.toLocaleString() : 'Not available'}
+            </small>
           </div>
         </div>
       </main>
