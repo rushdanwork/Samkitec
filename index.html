@@ -261,6 +261,29 @@
             margin-top: 8px;
             text-align: center;
         }
+
+        .connection-diagnostic-btn {
+            background: var(--info-color);
+            border: none;
+            color: white;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .connection-diagnostic-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(6, 182, 212, 0.25);
+        }
+
+        .connection-diagnostic-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
         
         /* Sidebar Styles */
         .sidebar {
@@ -2158,6 +2181,15 @@
                 retryButton.addEventListener('click', () => verifyFirebaseConnection(true));
             }
 
+            const statusButton = document.getElementById('firebase-status-btn');
+            if (statusButton) {
+                statusButton.addEventListener('click', async () => {
+                    statusButton.disabled = true;
+                    await runFirebaseStatus();
+                    statusButton.disabled = false;
+                });
+            }
+
             const loginForm = document.getElementById('login-form');
             const signupForm = document.getElementById('signup-form');
             const showSignupButton = document.getElementById('show-signup');
@@ -2192,6 +2224,116 @@
 
         verifyFirebaseConnection();
         window.verifyFirebaseConnection = verifyFirebaseConnection;
+
+        async function runTestWriteRead(testDocId) {
+            if (!db) return { testWrite: false, testRead: false, docId: null };
+            const docId = testDocId || `diagnostic_${Date.now()}`;
+            const docRef = doc(db, 'connectivityDiagnostics', docId);
+            const payload = {
+                createdAt: serverTimestamp(),
+                uid: auth?.currentUser?.uid || null
+            };
+            let testWrite = false;
+            let testRead = false;
+
+            try {
+                await setDoc(docRef, payload, { merge: true });
+                testWrite = true;
+            } catch (error) {
+                console.warn('[FirebaseCheck] Write test failed:', error);
+            }
+
+            try {
+                const snapshot = await getDoc(docRef);
+                testRead = snapshot.exists();
+            } catch (error) {
+                console.warn('[FirebaseCheck] Read test failed:', error);
+            }
+
+            return { testWrite, testRead, docId };
+        }
+
+        async function testRealtimeListener() {
+            if (!db) return false;
+            let unsubscribe = () => {};
+            let timeoutId;
+            const listenPromise = new Promise((resolve) => {
+                unsubscribe = onSnapshot(
+                    collection(db, 'attendanceRecords'),
+                    (snap) => {
+                        console.log('[RealtimeTest] Listener triggered. Docs:', snap.size);
+                        unsubscribe();
+                        resolve(true);
+                    },
+                    (error) => {
+                        console.warn('[RealtimeTest] Listener error:', error);
+                        unsubscribe();
+                        resolve(false);
+                    }
+                );
+            });
+
+            const timeoutPromise = new Promise((resolve) => {
+                timeoutId = setTimeout(() => {
+                    console.warn('[RealtimeTest] Listener timed out.');
+                    unsubscribe();
+                    resolve(false);
+                }, 5000);
+            });
+
+            const result = await Promise.race([listenPromise, timeoutPromise]);
+            clearTimeout(timeoutId);
+            return result;
+        }
+
+        async function firebaseConnectivityCheck() {
+            console.log('[FirebaseCheck] Starting diagnostics...');
+            const result = {
+                sdkLoaded: typeof initializeApp === 'function',
+                firestoreConnected: Boolean(db),
+                authWorking: Boolean(auth),
+                testWrite: false,
+                testRead: false,
+                realtimeListener: false
+            };
+
+            try {
+                if (!db || !auth) {
+                    console.warn('[FirebaseCheck] Firebase is not fully initialized.');
+                } else {
+                    const { testWrite, testRead } = await runTestWriteRead();
+                    result.testWrite = testWrite;
+                    result.testRead = testRead;
+                    result.realtimeListener = await testRealtimeListener();
+                }
+            } catch (error) {
+                console.warn('[FirebaseCheck] Diagnostics encountered an error:', error);
+            }
+
+            console.table(result);
+            return result;
+        }
+
+        async function runFirebaseStatus() {
+            try {
+                const result = await firebaseConnectivityCheck();
+
+                alert(
+                    "Firebase Connectivity Status:\n\n" +
+                    `SDK Loaded: ${result.sdkLoaded}\n` +
+                    `Firestore Connected: ${result.firestoreConnected}\n` +
+                    `Auth Working: ${result.authWorking}\n` +
+                    `Test Write: ${result.testWrite}\n` +
+                    `Test Read: ${result.testRead}`
+                );
+            } catch (error) {
+                console.warn('[FirebaseCheck] Unable to run status check:', error);
+                alert('Firebase connectivity check failed. Please review the console for details.');
+            }
+        }
+
+        window.firebaseConnectivityCheck = firebaseConnectivityCheck;
+        window.runFirebaseStatus = runFirebaseStatus;
 
         // Signup function
         window.signUp = async function() {
@@ -2482,6 +2624,9 @@
                     <div class="dashboard-hero__actions">
                         <button class="btn btn-primary" onclick="showSection('payroll')">Run Payroll</button>
                         <button class="btn btn-outline" onclick="showSection('employees'); document.getElementById('addEmployeeBtn').click();">Add Employee</button>
+                        <button id="firebase-status-btn" class="connection-diagnostic-btn" type="button">
+                            Check Firebase Status
+                        </button>
                         <button onclick="logout()" class="btn btn-danger">Logout</button>
                     </div>
                 </div>
