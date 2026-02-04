@@ -1773,6 +1773,149 @@
         #compliance-risk-cards summary::-webkit-details-marker {
             display: none;
         }
+
+        .compliance-summary {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .compliance-summary__chip {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .severity-chip {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .severity-low {
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--success-color);
+        }
+
+        .severity-medium {
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--warning-color);
+        }
+
+        .severity-high {
+            background: rgba(239, 68, 68, 0.12);
+            color: var(--danger-color);
+        }
+
+        .fade-in {
+            animation: fadeIn 0.35s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .compliance-table {
+            width: 100%;
+        }
+
+        .compliance-table th,
+        .compliance-table td {
+            padding: 12px 14px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .compliance-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .compliance-modal.open {
+            display: flex;
+        }
+
+        .compliance-modal__content {
+            background: #fff;
+            border-radius: 18px;
+            padding: 20px;
+            width: min(720px, 92vw);
+            box-shadow: var(--card-shadow);
+        }
+
+        .compliance-modal__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .compliance-modal__close {
+            background: transparent;
+            border: none;
+            font-size: 1.6rem;
+            cursor: pointer;
+        }
+
+        .detail-summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 12px;
+            gap: 12px;
+        }
+
+        .violation-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 10px;
+            display: grid;
+            gap: 6px;
+        }
+
+        .violation-item__header {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        @media (max-width: 768px) {
+            .compliance-topbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .compliance-table th,
+            .compliance-table td {
+                padding: 10px 8px;
+            }
+        }
         
         /* Enhanced Table Styles */
         .table-actions {
@@ -1863,7 +2006,8 @@
             where,
             getDoc,
             addDoc,
-            onSnapshot
+            onSnapshot,
+            serverTimestamp
         } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
         import {
             getStorage,
@@ -1916,7 +2060,8 @@
                 where,
                 getDoc,
                 addDoc,
-                onSnapshot
+                onSnapshot,
+                serverTimestamp
             };
         }
 
@@ -2453,8 +2598,14 @@
                             </div>
                         </div>
                         <button class="btn btn-primary" id="compliance-run-scan">
-                            <i class="fas fa-wave-square"></i> Run Deep Scan
+                            <i class="fas fa-wave-square"></i> Re-run Compliance Scan
                         </button>
+                    </div>
+
+                    <div class="compliance-summary" id="compliance-risk-summary">
+                        <div class="compliance-summary__chip severity-high">High: <span id="compliance-summary-high">0</span></div>
+                        <div class="compliance-summary__chip severity-medium">Medium: <span id="compliance-summary-medium">0</span></div>
+                        <div class="compliance-summary__chip severity-low">Low: <span id="compliance-summary-low">0</span></div>
                     </div>
 
                     <div class="compliance-category-grid" id="compliance-category-grid">
@@ -2497,6 +2648,28 @@
                         </div>
                         <div id="compliance-risk-cards" class="insights-list">
                             <div class="anomaly-empty">Run a scan to populate compliance risks.</div>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-card__header">
+                            <div>
+                                <div class="chart-card__title">Employee Risk Table</div>
+                                <div class="chart-card__subtitle">Review risk scores, levels, and drill into details</div>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="compliance-table" id="compliance-risk-table">
+                                <thead>
+                                    <tr>
+                                        <th>Employee Name</th>
+                                        <th>Risk Score</th>
+                                        <th>Risk Level</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="compliance-risk-table-body"></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -8037,7 +8210,7 @@ Employees: ${employeeSummary}`);
         };
     </script>
     <script src="./complianceRulesIndia.js"></script>
-    <script src="./complianceRiskEngine.js"></script>
+    <script type="module" src="./complianceRiskEngine.js"></script>
     <script src="./complianceRiskUI.js"></script>
     <script src="./payrollAnomalyDetector.js"></script>
     <script>
