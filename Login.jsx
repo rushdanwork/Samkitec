@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import logoEye from './assets/logo_eye.png';
+
 export default function Login({ onLogin }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -21,7 +23,7 @@ export default function Login({ onLogin }) {
         onSubmit={handleSubmit}
       >
         <div className="mb-6 flex justify-center">
-          <img src="./assets/logo_eye.png" alt="eye logo" className="h-12 w-auto" />
+          <img src={logoEye} alt="eye logo" className="h-12 w-auto" />
         </div>
         <h2 className="mb-6 text-center text-2xl font-semibold">Login</h2>
         <label className="mb-2 block text-sm font-medium" htmlFor="login-email">

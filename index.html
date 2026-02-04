@@ -4181,6 +4181,7 @@
         };
 
         const PAYROLL_COLLECTION = 'payrollRecords';
+        const ATTENDANCE_COLLECTION = 'attendanceRecords';
         let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || {};
         let monthlyReports = JSON.parse(localStorage.getItem('monthlyReports')) || {};
         let savedDays = JSON.parse(localStorage.getItem('savedDays')) || [];
@@ -4274,7 +4275,7 @@
                 });
 
                 const logo = document.createElement('img');
-                logo.src = '/eye_logo.png';
+                logo.src = './assets/logo_eye.png';
                 logo.alt = 'Samkitec logo';
                 logo.className = 'header-logo__image';
 
@@ -4337,53 +4338,13 @@
             // Set current month as default for attendance
             const today = new Date();
             const currentMonth = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
-            document.getElementById('month-select').value = currentMonth;
-            document.getElementById('reportMonthSelect').value = currentMonth;
-            document.getElementById('payrollReportMonth').value = currentMonth;
+            const monthSelect = document.getElementById('month-select');
+            const reportMonthSelect = document.getElementById('reportMonthSelect');
+            const payrollReportMonth = document.getElementById('payrollReportMonth');
 
-            ['month-select', 'payrollReportMonth'].forEach(id => {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.addEventListener('change', () => {
-                        if (typeof updateComplianceRiskUI === 'function') {
-                            updateComplianceRiskUI();
-                        }
-                    });
-                }
-            });
-
-            ['month-select', 'payrollReportMonth'].forEach(id => {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.addEventListener('change', () => {
-                        if (typeof updateComplianceRiskUI === 'function') {
-                            updateComplianceRiskUI();
-                        }
-                    });
-                }
-            });
-
-            ['month-select', 'payrollReportMonth'].forEach(id => {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.addEventListener('change', () => {
-                        if (typeof updateComplianceRiskUI === 'function') {
-                            updateComplianceRiskUI();
-                        }
-                    });
-                }
-            });
-
-            ['month-select', 'payrollReportMonth'].forEach(id => {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.addEventListener('change', () => {
-                        if (typeof updateComplianceRiskUI === 'function') {
-                            updateComplianceRiskUI();
-                        }
-                    });
-                }
-            });
+            if (monthSelect) monthSelect.value = currentMonth;
+            if (reportMonthSelect) reportMonthSelect.value = currentMonth;
+            if (payrollReportMonth) payrollReportMonth.value = currentMonth;
 
             ['month-select', 'payrollReportMonth'].forEach(id => {
                 const element = document.getElementById(id);
@@ -4543,7 +4504,7 @@
                 const { collection, onSnapshot } = window.firestoreFunctions;
 
                 realtimeUnsubscribers.attendance = onSnapshot(
-                    collection(window.firebaseDb, 'attendance'),
+                    collection(window.firebaseDb, ATTENDANCE_COLLECTION),
                     (snapshot) => {
                         console.log('[Attendance] Snapshot success.', { count: snapshot.size });
                         const firebaseAttendance = {};

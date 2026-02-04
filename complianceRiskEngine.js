@@ -2,7 +2,7 @@ import runComplianceEngine from './backend/complianceEngine.js';
 
 const COLLECTIONS = {
   employees: 'employees',
-  attendance: 'attendance',
+  attendance: 'attendanceRecords',
   payroll: 'payrollRecords',
   stateRules: 'stateRules',
   complianceViolations: 'complianceViolations',
