@@ -17,6 +17,8 @@ const engineState = {
 
 let runTimeout;
 let subscriptions = [];
+let scanInProgress = false;
+let pendingReason = null;
 
 const ensureFirebaseReady = () => Boolean(window.firebaseDb && window.firestoreFunctions);
 
@@ -47,43 +49,61 @@ const scheduleComplianceRun = (reason = 'auto') => {
 
 const runComplianceScan = async (reason = 'manual') => {
   if (!ensureFirebaseReady()) return null;
+  if (scanInProgress) {
+    pendingReason = reason;
+    return null;
+  }
   const { setDoc, doc, serverTimestamp } = window.firestoreFunctions;
   const db = window.firebaseDb;
 
-  const engineResult = runComplianceEngine(
-    engineState.employees,
-    engineState.attendanceRecords,
-    engineState.payrollRuns,
-    engineState.stateRules
-  );
+  scanInProgress = true;
 
-  const saveTasks = engineResult.results.map((report) => {
-    const payload = {
-      summary: {
-        employeeId: report.employeeId,
-        employeeName: report.employeeName,
-        riskScore: report.riskScore,
-        riskLevel: report.riskLevel,
-        lastEvaluated: serverTimestamp(),
-      },
-      violations: report.violations.map((violation) => ({
-        ...violation,
-        timestamp: serverTimestamp(),
-      })),
-    };
+  try {
+    const engineResult = runComplianceEngine(
+      engineState.employees,
+      engineState.attendanceRecords,
+      engineState.payrollRuns,
+      engineState.stateRules
+    );
 
-    return setDoc(doc(db, COLLECTIONS.complianceViolations, report.employeeId), payload, { merge: true });
-  });
+    const saveTasks = engineResult.results.map((report) => {
+      const payload = {
+        summary: {
+          employeeId: report.employeeId,
+          employeeName: report.employeeName,
+          riskScore: report.riskScore,
+          riskLevel: report.riskLevel,
+          lastEvaluated: serverTimestamp(),
+        },
+        violations: report.violations.map((violation) => ({
+          ...violation,
+          timestamp: serverTimestamp(),
+        })),
+      };
 
-  await Promise.all(saveTasks);
+      return setDoc(doc(db, COLLECTIONS.complianceViolations, report.employeeId), payload, { merge: true });
+    });
 
-  window.dispatchEvent(
-    new CustomEvent('complianceScanCompleted', {
-      detail: { reason, generatedAt: engineResult.generatedAt },
-    })
-  );
+    await Promise.all(saveTasks);
 
-  return engineResult;
+    window.dispatchEvent(
+      new CustomEvent('complianceScanCompleted', {
+        detail: { reason, generatedAt: engineResult.generatedAt },
+      })
+    );
+
+    return engineResult;
+  } catch (error) {
+    console.error('[ComplianceEngine] Failed to run compliance scan:', error);
+    return null;
+  } finally {
+    scanInProgress = false;
+    if (pendingReason) {
+      const nextReason = pendingReason;
+      pendingReason = null;
+      scheduleComplianceRun(nextReason);
+    }
+  }
 };
 
 const attachRealtimeListeners = () => {
@@ -123,6 +143,7 @@ const attachRealtimeListeners = () => {
   subscriptions.push(
     onSnapshot(collection(db, COLLECTIONS.stateRules), (snapshot) => {
       engineState.stateRules = parseStateRulesSnapshot(snapshot);
+      scheduleComplianceRun('stateRules');
     })
   );
 };

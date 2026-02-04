@@ -8322,18 +8322,12 @@ Employees: ${employeeSummary}`);
     <script src="./payrollAnomalyDetector.js"></script>
     <script>
       document.addEventListener("DOMContentLoaded", () => {
-        if (
-          typeof runComplianceRiskEngine === "function" &&
-          typeof renderComplianceRisk === "function"
-        ) {
-          const employees = window.employees || [];
-          const attendance = window.attendanceRecords || window.attendance || {};
-          const payroll = window.payrollRecords || window.payroll || [];
-
-          const result = runComplianceRiskEngine({ employees, attendance, payroll });
-          renderComplianceRisk(result);
+        if (typeof window.runComplianceScan === "function") {
+          window.runComplianceScan("initial").catch((error) => {
+            console.error("[ComplianceEngine] Initial scan failed:", error);
+          });
         } else {
-          console.error("Compliance engine functions not found");
+          console.warn("[ComplianceEngine] Compliance scan is not available yet.");
         }
       });
     </script>
