@@ -7,7 +7,7 @@ service cloud.firestore {
 
     match /complianceViolations/{employeeId} {
       allow read: if signedIn();
-      allow write: if signedIn() && request.auth.uid != null;
+      allow write: if signedIn();
     }
 
     match /{document=**} {

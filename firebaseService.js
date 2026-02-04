@@ -64,7 +64,7 @@ export const getComplianceReports = async () => {
   return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
 };
 
-export const listenComplianceSummary = (onSuccess, onError) => {
+export const listenComplianceReports = (onSuccess, onError) => {
   const db = getFirestoreDb();
   return onSnapshot(
     collection(db, COMPLIANCE_COLLECTION),
@@ -77,6 +77,9 @@ export const listenComplianceSummary = (onSuccess, onError) => {
     }
   );
 };
+
+export const listenComplianceSummary = (onSuccess, onError) =>
+  listenComplianceReports(onSuccess, onError);
 
 const DIAGNOSTICS_COLLECTION = 'connectivityDiagnostics';
 const REALTIME_COLLECTION = 'attendanceRecords';
