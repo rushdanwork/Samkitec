@@ -174,7 +174,7 @@
                     <span class="text-muted">${violation.type}</span>
                 </div>
                 <div>${violation.message}</div>
-                <div class="text-muted">Suggested fix: ${violation.recommendedFix}</div>
+                <div class="text-muted">Suggested fix: ${violation.recommendedFix || 'Review and apply the relevant compliance remediation.'}</div>
                 <div class="text-muted">Logged: ${formatTimestamp(violation.timestamp)}</div>
             `;
             listContainer.appendChild(item);
@@ -225,13 +225,19 @@
         if (!window.firebaseDb || !window.firestoreFunctions) return;
         const { collection, onSnapshot } = window.firestoreFunctions;
 
-        onSnapshot(collection(window.firebaseDb, 'complianceViolations'), (snapshot) => {
-            const reports = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-            renderSummary(reports);
-            renderRiskCards(reports);
-            renderRiskTable(reports);
-            listenComplianceReports.lastReports = reports;
-        });
+        onSnapshot(
+            collection(window.firebaseDb, 'complianceViolations'),
+            (snapshot) => {
+                const reports = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+                renderSummary(reports);
+                renderRiskCards(reports);
+                renderRiskTable(reports);
+                listenComplianceReports.lastReports = reports;
+            },
+            (error) => {
+                console.error('[ComplianceUI] Failed to listen for compliance reports:', error);
+            }
+        );
     };
 
     window.addEventListener('DOMContentLoaded', () => {
