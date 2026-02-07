@@ -141,12 +141,27 @@
         });
     };
 
-    const renderModalContent = (report) => {
+    const fetchViolations = async (employeeId) => {
+        if (!window.firebaseDb || !window.firestoreFunctions) return [];
+        const { doc, getDoc } = window.firestoreFunctions;
+        try {
+            const violationsRef = doc(window.firebaseDb, 'complianceViolations', employeeId, 'violations', 'list');
+            const snapshot = await getDoc(violationsRef);
+            if (!snapshot.exists()) return [];
+            const data = snapshot.data();
+            return Array.isArray(data?.list) ? data.list : [];
+        } catch (error) {
+            console.warn('[ComplianceUI] Failed to load violations:', error);
+            return [];
+        }
+    };
+
+    const renderModalContent = async (report) => {
         const modal = ensureModal();
         const modalBody = document.getElementById('compliance-detail-body');
         if (!modalBody || !report) return;
 
-        const violations = report.violations || [];
+        const initialViolations = Array.isArray(report.violations) ? report.violations : [];
         modalBody.innerHTML = `
             <div class="detail-summary">
                 <div>
@@ -158,12 +173,20 @@
                 </span>
             </div>
             <div class="detail-violations">
-                ${violations.length === 0 ? '<div class="text-muted">No violations reported.</div>' : ''}
+                ${initialViolations.length === 0 ? '<div class="text-muted">Loading violations...</div>' : ''}
             </div>
         `;
 
         const listContainer = modalBody.querySelector('.detail-violations');
-        violations.forEach((violation) => {
+        const resolvedViolations = initialViolations.length
+            ? initialViolations
+            : await fetchViolations(report.id);
+
+        if (resolvedViolations.length === 0) {
+            listContainer.innerHTML = '<div class="text-muted">No violations reported.</div>';
+        }
+
+        resolvedViolations.forEach((violation) => {
             const item = document.createElement('div');
             item.className = 'violation-item';
             item.innerHTML = `
@@ -175,7 +198,6 @@
                 </div>
                 <div>${violation.message}</div>
                 <div class="text-muted">Suggested fix: ${violation.recommendedFix || 'Review and apply the relevant compliance remediation.'}</div>
-                <div class="text-muted">Logged: ${formatTimestamp(violation.timestamp)}</div>
             `;
             listContainer.appendChild(item);
         });

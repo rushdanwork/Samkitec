@@ -44,18 +44,32 @@ const COMPLIANCE_COLLECTION = 'complianceViolations';
 
 export const saveComplianceReport = async (employeeId, summary, violations) => {
   const db = getFirestoreDb();
-  const payload = {
+  const summaryObject = {
     summary: {
       ...summary,
       employeeId,
       lastEvaluated: getServerTimestamp(),
     },
-    violations: (violations || []).map((violation) => ({
-      ...violation,
-      timestamp: getServerTimestamp(),
-    })),
   };
-  await setDoc(doc(db, COMPLIANCE_COLLECTION, employeeId), payload, { merge: true });
+  const summaryRef = doc(db, COMPLIANCE_COLLECTION, employeeId);
+  const violationsRef = doc(db, COMPLIANCE_COLLECTION, employeeId, 'violations', 'list');
+  let violationsArray = [];
+
+  try {
+    const sourceViolations = Array.isArray(violations) ? violations : [];
+    violationsArray = sourceViolations.map(({ type, severity, message, recommendedFix }) => ({
+      type,
+      severity,
+      message,
+      recommendedFix,
+    }));
+  } catch (error) {
+    console.warn('[ComplianceReport] Failed to normalize violations array:', error);
+    violationsArray = [];
+  }
+
+  await setDoc(summaryRef, summaryObject, { merge: true });
+  await setDoc(violationsRef, { list: violationsArray });
 };
 
 export const getComplianceReports = async () => {

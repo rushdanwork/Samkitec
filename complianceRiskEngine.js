@@ -67,7 +67,7 @@ const runComplianceScan = async (reason = 'manual') => {
     );
 
     const saveTasks = engineResult.results.map((report) => {
-      const payload = {
+      const summaryObject = {
         summary: {
           employeeId: report.employeeId,
           employeeName: report.employeeName,
@@ -75,13 +75,28 @@ const runComplianceScan = async (reason = 'manual') => {
           riskLevel: report.riskLevel,
           lastEvaluated: serverTimestamp(),
         },
-        violations: report.violations.map((violation) => ({
-          ...violation,
-          timestamp: serverTimestamp(),
-        })),
       };
+      const summaryRef = doc(db, COLLECTIONS.complianceViolations, report.employeeId);
+      const violationsRef = doc(db, COLLECTIONS.complianceViolations, report.employeeId, 'violations', 'list');
+      let violationsArray = [];
 
-      return setDoc(doc(db, COLLECTIONS.complianceViolations, report.employeeId), payload, { merge: true });
+      try {
+        const sourceViolations = Array.isArray(report.violations) ? report.violations : [];
+        violationsArray = sourceViolations.map(({ type, severity, message, recommendedFix }) => ({
+          type,
+          severity,
+          message,
+          recommendedFix,
+        }));
+      } catch (error) {
+        console.warn('[ComplianceEngine] Failed to normalize violations array:', error);
+        violationsArray = [];
+      }
+
+      return Promise.all([
+        setDoc(summaryRef, summaryObject, { merge: true }),
+        setDoc(violationsRef, { list: violationsArray }),
+      ]);
     });
 
     await Promise.all(saveTasks);
