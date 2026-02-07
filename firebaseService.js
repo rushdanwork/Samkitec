@@ -7,11 +7,8 @@ import {
   getDocs,
   getFirestore,
   onSnapshot,
-  orderBy,
-  query,
   serverTimestamp,
   setDoc,
-  where,
 } from 'firebase/firestore';
 
 let firebaseApp;
@@ -44,10 +41,6 @@ export const getAuthService = () => {
 export const getServerTimestamp = () => serverTimestamp();
 
 const COMPLIANCE_COLLECTION = 'complianceViolations';
-const EXPENSES_COLLECTION = 'expenses';
-const EXPENSE_LIMITS_COLLECTION = 'expenseLimits';
-const EXPENSE_STATS_COLLECTION = 'employeeExpenseStats';
-
 export const saveComplianceReport = async (employeeId, summary, violations) => {
   const db = getFirestoreDb();
   const summaryObject = {
@@ -100,90 +93,6 @@ export const listenComplianceReports = (onSuccess, onError) => {
 
 export const listenComplianceSummary = (onSuccess, onError) =>
   listenComplianceReports(onSuccess, onError);
-
-const debounceSnapshot = (callback, delay = 250) => {
-  let timeoutId;
-  return (snapshot) => {
-    if (timeoutId) clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => callback(snapshot), delay);
-  };
-};
-
-export const listenEmployeeExpenses = (employeeId, onSuccess, onError, debounceMs = 250) => {
-  const db = getFirestoreDb();
-  const expenseQuery = query(
-    collection(db, EXPENSES_COLLECTION),
-    where('employeeId', '==', employeeId),
-    orderBy('createdAt', 'desc')
-  );
-  return onSnapshot(
-    expenseQuery,
-    debounceSnapshot((snapshot) => {
-      const expenses = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-      onSuccess(expenses);
-    }, debounceMs),
-    (error) => {
-      if (onError) onError(error);
-    }
-  );
-};
-
-export const listenPendingExpenseApprovals = (onSuccess, onError, debounceMs = 250) => {
-  const db = getFirestoreDb();
-  const expenseQuery = query(
-    collection(db, EXPENSES_COLLECTION),
-    where('status', '==', 'submitted'),
-    orderBy('createdAt', 'desc')
-  );
-  return onSnapshot(
-    expenseQuery,
-    debounceSnapshot((snapshot) => {
-      const expenses = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-      onSuccess(expenses);
-    }, debounceMs),
-    (error) => {
-      if (onError) onError(error);
-    }
-  );
-};
-
-export const listenExpenseStats = (employeeId, onSuccess, onError, debounceMs = 250) => {
-  const db = getFirestoreDb();
-  return onSnapshot(
-    doc(db, EXPENSE_STATS_COLLECTION, employeeId),
-    debounceSnapshot((snapshot) => {
-      onSuccess(snapshot.exists() ? snapshot.data() : null);
-    }, debounceMs),
-    (error) => {
-      if (onError) onError(error);
-    }
-  );
-};
-
-export const listenApprovedExpenses = (onSuccess, onError, debounceMs = 250) => {
-  const db = getFirestoreDb();
-  const expenseQuery = query(
-    collection(db, EXPENSES_COLLECTION),
-    where('status', '==', 'approved'),
-    orderBy('createdAt', 'desc')
-  );
-  return onSnapshot(
-    expenseQuery,
-    debounceSnapshot((snapshot) => {
-      const expenses = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-      onSuccess(expenses);
-    }, debounceMs),
-    (error) => {
-      if (onError) onError(error);
-    }
-  );
-};
-
-export const getExpenseLimits = async (employeeId) => {
-  const db = getFirestoreDb();
-  const snapshot = await getDoc(doc(db, EXPENSE_LIMITS_COLLECTION, employeeId));
-  return snapshot.exists() ? snapshot.data() : null;
-};
 
 const DIAGNOSTICS_COLLECTION = 'connectivityDiagnostics';
 const REALTIME_COLLECTION = 'attendanceRecords';
