@@ -46,7 +46,7 @@
         const email = (user?.email || '').toLowerCase();
         if (email.includes('accountant')) return 'accountant';
         if (email.includes('admin')) return 'admin';
-        return 'admin';
+        return 'employee';
     };
 
     const canManageExpenses = () => {
