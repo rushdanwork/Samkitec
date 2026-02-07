@@ -7,7 +7,6 @@ import Header from './components/Header.jsx';
 const PAYROLL_COLLECTION = 'payrollRecords';
 const ATTENDANCE_COLLECTION = 'attendanceRecords';
 const EMPLOYEES_COLLECTION = 'employees';
-const EXPENSES_COLLECTION = 'expenses';
 const normalizeDateKey = (date = new Date()) => date.toISOString().split('T')[0];
 
 const parseTimestamp = (value) => {
@@ -23,17 +22,10 @@ export default function Dashboard() {
   const [employees, setEmployees] = useState([]);
   const [complianceReports, setComplianceReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [expenseOverview, setExpenseOverview] = useState({
-    totalThisMonth: 0,
-    topCategory: '—',
-    topVendor: '—',
-    pendingApprovals: 0,
-  });
 
   useEffect(() => {
     const db = getFirestoreDb();
     const unsubscribers = [];
-    let expenseTimeoutId;
 
     unsubscribers.push(
       onSnapshot(
@@ -66,53 +58,10 @@ export default function Dashboard() {
       })
     );
 
-    unsubscribers.push(
-      onSnapshot(
-        query(collection(db, EXPENSES_COLLECTION), orderBy('createdAt', 'desc')),
-        (snapshot) => {
-          if (expenseTimeoutId) clearTimeout(expenseTimeoutId);
-          expenseTimeoutId = setTimeout(() => {
-            const expenses = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-            const currentMonth = new Date().toISOString().slice(0, 7);
-            const monthly = expenses.filter((expense) => {
-              const dateValue = parseTimestamp(expense.date) || parseTimestamp(expense.createdAt);
-              return dateValue && dateValue.toISOString().slice(0, 7) === currentMonth;
-            });
-            const totalThisMonth = monthly.reduce(
-              (sum, expense) => sum + (Number(expense.amount) || 0),
-              0
-            );
-            const pendingApprovals = expenses.filter((expense) => expense.status === 'submitted').length;
-            const categoryTotals = monthly.reduce((acc, expense) => {
-              const category = expense.category || 'misc';
-              acc[category] = (acc[category] || 0) + (Number(expense.amount) || 0);
-              return acc;
-            }, {});
-            const vendorTotals = monthly.reduce((acc, expense) => {
-              const vendor = expense.vendor || 'Unknown';
-              acc[vendor] = (acc[vendor] || 0) + (Number(expense.amount) || 0);
-              return acc;
-            }, {});
-
-            const topCategory = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
-            const topVendor = Object.entries(vendorTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
-
-            setExpenseOverview({
-              totalThisMonth,
-              topCategory,
-              topVendor,
-              pendingApprovals,
-            });
-          }, 200);
-        }
-      )
-    );
-
     setLoading(false);
 
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe());
-      if (expenseTimeoutId) clearTimeout(expenseTimeoutId);
     };
   }, []);
 
@@ -209,14 +158,6 @@ export default function Dashboard() {
               Last scan:{' '}
               {metrics.lastComplianceScan ? metrics.lastComplianceScan.toLocaleString() : 'Not available'}
             </small>
-          </div>
-          <div className="dashboard-card">
-            <h4>Monthly Expense Overview</h4>
-            <p>Total ₹{expenseOverview.totalThisMonth.toLocaleString()}</p>
-            <small>
-              Top category: {expenseOverview.topCategory} · Top vendor: {expenseOverview.topVendor}
-            </small>
-            <div className="text-muted">Pending approvals: {expenseOverview.pendingApprovals}</div>
           </div>
         </div>
       </main>
