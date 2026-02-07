@@ -10,6 +10,18 @@ service cloud.firestore {
       allow write: if signedIn();
     }
 
+    match /expenses/{expenseId} {
+      allow read, write: if signedIn();
+    }
+
+    match /expenseLimits/{employeeId} {
+      allow read, write: if signedIn();
+    }
+
+    match /employeeExpenseStats/{employeeId} {
+      allow read, write: if signedIn();
+    }
+
     match /{document=**} {
       allow read, write: if signedIn();
     }

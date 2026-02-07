@@ -6,8 +6,21 @@ export const buildPayrollRunPayload = ({
   payrollData,
   status = 'Completed',
 }) => {
-  const employeeCount = payrollData.length;
-  const totalPayout = payrollData.reduce(
+  const normalizedPayroll = payrollData.map((record) => {
+    const reimbursementTotal = Number(record.reimbursementTotal) || 0;
+    if (record.reimbursementApplied) {
+      return record;
+    }
+    return {
+      ...record,
+      reimbursementTotal,
+      netSalary: (Number(record.netSalary) || 0) + reimbursementTotal,
+      reimbursementApplied: reimbursementTotal > 0,
+    };
+  });
+
+  const employeeCount = normalizedPayroll.length;
+  const totalPayout = normalizedPayroll.reduce(
     (sum, record) => sum + (Number(record.netSalary) || 0),
     0
   );
@@ -18,7 +31,7 @@ export const buildPayrollRunPayload = ({
     status,
     totalPayout,
     employeeCount,
-    payrollData,
+    payrollData: normalizedPayroll,
   };
 };
 
