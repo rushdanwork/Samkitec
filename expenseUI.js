@@ -1,25 +1,28 @@
-(function(window) {
+(function (window) {
     const CATEGORY_LABELS = {
         travel: 'Travel',
         meals: 'Meals',
         office: 'Office',
         misc: 'Misc',
-        fuel: 'Fuel'
+        fuel: 'Fuel',
+        software: 'Software',
+        utilities: 'Utilities'
     };
 
-    const CATEGORY_CLASS = {
-        meals: 'chip-meals',
-        travel: 'chip-travel',
-        office: 'chip-office',
-        misc: 'chip-misc',
-        fuel: 'chip-fuel'
+    const CATEGORY_COLORS = {
+        travel: '#2563eb',
+        meals: '#f97316',
+        office: '#10b981',
+        misc: '#64748b',
+        fuel: '#facc15',
+        software: '#8b5cf6',
+        utilities: '#06b6d4'
     };
 
-    const STATUS_CLASS = {
-        submitted: 'status-amber',
-        approved: 'status-green',
-        rejected: 'status-red',
-        paid: 'status-blue'
+    const state = {
+        expenses: [],
+        initialized: false,
+        unsubscribe: null
     };
 
     const formatCurrency = (amount) => `₹${Number(amount || 0).toLocaleString()}`;
@@ -31,45 +34,31 @@
         return Number.isNaN(parsed.getTime()) ? null : parsed;
     };
 
-    const debounce = (callback, delay = 250) => {
-        let timeoutId;
-        return (...args) => {
-            if (timeoutId) clearTimeout(timeoutId);
-            timeoutId = setTimeout(() => callback(...args), delay);
-        };
+    const getMonthKey = (value) => {
+        const parsed = parseDate(value);
+        return parsed ? parsed.toISOString().slice(0, 7) : null;
     };
 
-    const extractReceiptData = (text) => {
-        const amountMatch = text.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)/g);
-        const amount = amountMatch ? Number(amountMatch[amountMatch.length - 1].replace(/,/g, '')) : null;
-        const vendor = text.match(/vendor[:\s-]*([\w\s&.-]{3,})/i)?.[1] || text.split(/[\/._-]/)[0];
-        let category = 'misc';
-        const lower = text.toLowerCase();
-        if (/(flight|hotel|uber|taxi|train)/.test(lower)) category = 'travel';
-        if (/(meal|restaurant|cafe|dinner|lunch|breakfast)/.test(lower)) category = 'meals';
-        if (/(office|stationery|supplies|software)/.test(lower)) category = 'office';
-        if (/(fuel|gas|petrol|diesel)/.test(lower)) category = 'fuel';
-
-        return {
-            amount,
-            vendor,
-            categoryGuess: category,
-            confidence: amount || vendor ? 0.78 : 0.55
-        };
+    const resolveUserRole = () => {
+        const user = window.firebaseState?.user;
+        const role = user?.role || user?.claims?.role || user?.customClaims?.role;
+        if (role) return String(role).toLowerCase();
+        const email = (user?.email || '').toLowerCase();
+        if (email.includes('accountant')) return 'accountant';
+        if (email.includes('admin')) return 'admin';
+        return 'employee';
     };
 
-    const state = {
-        expenses: [],
-        limits: null,
-        stats: null,
-        initialized: false,
-        unsubscribe: null,
-        statsUnsubscribe: null,
-        limitsUnsubscribe: null
+    const canManageExpenses = () => {
+        if (typeof window.canManageExpenses === 'function') {
+            return window.canManageExpenses();
+        }
+        const role = resolveUserRole();
+        return ['admin', 'accountant'].includes(role);
     };
 
     const setBanner = (message, type = 'error') => {
-        const banner = document.getElementById('expense-error-banner');
+        const banner = document.getElementById('expense-entry-banner');
         if (!banner) return;
         banner.textContent = message;
         banner.classList.toggle('is-visible', Boolean(message));
@@ -77,99 +66,242 @@
         banner.classList.toggle('is-success', type === 'success');
     };
 
-    const setLoading = (loading) => {
-        const loadingEl = document.getElementById('expense-history-loading');
-        if (loadingEl) loadingEl.style.display = loading ? 'block' : 'none';
+    const setUploadStatus = (message, type = 'info') => {
+        const status = document.getElementById('expense-upload-status');
+        if (!status) return;
+        status.textContent = message;
+        status.classList.toggle('is-visible', Boolean(message));
+        status.dataset.type = type;
     };
 
-    const updateLimitChips = (amount, category) => {
-        const container = document.getElementById('expense-limit-chips');
+    const updateAccessNote = () => {
+        const note = document.getElementById('expense-access-note');
+        const form = document.getElementById('expense-entry-form');
+        const allowed = canManageExpenses();
+        if (note) {
+            note.textContent = allowed
+                ? 'Accountant/Admin access enabled. Capture vendor receipts and keep records audit-ready.'
+                : 'Expense creation is restricted to accountant/admin users.';
+            note.classList.add('is-visible');
+            note.classList.toggle('is-error', !allowed);
+            note.classList.toggle('is-success', allowed);
+        }
+        if (form) {
+            form.querySelectorAll('input, select, textarea, button').forEach((element) => {
+                if (element.id === 'expenseReceiptUrl') {
+                    element.disabled = true;
+                    return;
+                }
+                element.disabled = !allowed;
+            });
+        }
+    };
+
+    const uploadReceipt = async (file) => {
+        if (!file) return '';
+        const storage = window.firebaseStorage;
+        const storageFns = window.storageFunctions;
+        if (!storage || !storageFns) {
+            return URL.createObjectURL(file);
+        }
+        const safeName = file.name.replace(/\s+/g, '_');
+        const path = `expenses/${Date.now()}_${safeName}`;
+        const receiptRef = storageFns.storageRef(storage, path);
+        await storageFns.uploadBytes(receiptRef, file);
+        return storageFns.getDownloadURL(receiptRef);
+    };
+
+    const renderExpenseCards = () => {
+        const container = document.getElementById('expense-cards');
         if (!container) return;
         container.innerHTML = '';
-        if (!state.limits) return;
-
-        const monthlyLimit = state.limits.monthlyLimit || 0;
-        const categoryLimit = state.limits.categoryLimits?.[category] || 0;
-
-        if (monthlyLimit && amount > monthlyLimit) {
-            const chip = document.createElement('span');
-            chip.className = 'limit-chip limit-chip--danger';
-            chip.textContent = `Monthly limit exceeded (₹${monthlyLimit.toLocaleString()})`;
-            container.appendChild(chip);
-        } else if (monthlyLimit) {
-            const chip = document.createElement('span');
-            chip.className = 'limit-chip limit-chip--warn';
-            chip.textContent = `Monthly limit ₹${monthlyLimit.toLocaleString()}`;
-            container.appendChild(chip);
-        }
-
-        if (categoryLimit && amount > categoryLimit) {
-            const chip = document.createElement('span');
-            chip.className = 'limit-chip limit-chip--danger';
-            chip.textContent = `${CATEGORY_LABELS[category] || category} cap exceeded (₹${categoryLimit.toLocaleString()})`;
-            container.appendChild(chip);
-        } else if (categoryLimit) {
-            const chip = document.createElement('span');
-            chip.className = 'limit-chip limit-chip--warn';
-            chip.textContent = `${CATEGORY_LABELS[category] || category} cap ₹${categoryLimit.toLocaleString()}`;
-            container.appendChild(chip);
-        }
-    };
-
-    const renderAiPreview = (data) => {
-        const container = document.getElementById('expense-ai-preview');
-        if (!container) return;
-        container.classList.add('is-visible');
-        container.querySelector('[data-ai="amount"]').textContent = data.amount ? formatCurrency(data.amount) : '—';
-        container.querySelector('[data-ai="vendor"]').textContent = data.vendor || '—';
-        container.querySelector('[data-ai="category"]').textContent = CATEGORY_LABELS[data.categoryGuess] || data.categoryGuess || '—';
-        container.querySelector('[data-ai="confidence"]').textContent = `${Math.round((data.confidence || 0) * 100)}%`;
-    };
-
-    const applyFilters = () => {
-        const status = document.getElementById('expense-filter-status')?.value || 'all';
-        const category = document.getElementById('expense-filter-category')?.value || 'all';
-        const fromDate = document.getElementById('expense-filter-from')?.value;
-        const toDate = document.getElementById('expense-filter-to')?.value;
-
-        return state.expenses.filter((expense) => {
-            if (status !== 'all' && expense.status !== status) return false;
-            if (category !== 'all' && expense.category !== category) return false;
-            const expenseDate = parseDate(expense.date || expense.createdAt);
-            if (fromDate && expenseDate && expenseDate < new Date(fromDate)) return false;
-            if (toDate && expenseDate && expenseDate > new Date(`${toDate}T23:59:59`)) return false;
-            return true;
-        });
-    };
-
-    const renderExpenseTable = () => {
-        const body = document.getElementById('expense-history-body');
-        if (!body) return;
-        body.innerHTML = '';
-        const filtered = applyFilters();
-        if (filtered.length === 0) {
-            body.innerHTML = '<tr><td colspan="6" class="text-muted">No expenses match your filters.</td></tr>';
+        if (!state.expenses.length) {
+            container.innerHTML = '<div class="expense-empty">No expenses recorded yet.</div>';
             return;
         }
 
-        filtered.forEach((expense) => {
-            const row = document.createElement('tr');
-            const statusClass = STATUS_CLASS[expense.status] || 'status-amber';
-            const categoryClass = CATEGORY_CLASS[expense.category] || 'chip-misc';
-            row.innerHTML = `
-                <td>${expense.vendor || 'Unknown'}</td>
-                <td>${formatCurrency(expense.amount)}</td>
-                <td><span class="category-chip ${categoryClass}">${CATEGORY_LABELS[expense.category] || expense.category}</span></td>
-                <td>${parseDate(expense.date)?.toLocaleDateString() || '—'}</td>
-                <td><span class="status-badge ${statusClass}">${expense.status}</span></td>
-                <td><button class="btn btn-outline btn-sm" data-receipt="${expense.receiptUrl || ''}">View Receipt</button></td>
+        state.expenses.forEach((expense) => {
+            const card = document.createElement('div');
+            card.className = 'expense-card expense-record';
+            card.dataset.expenseId = expense.id;
+            const category = expense.category || 'misc';
+            const categoryLabel = CATEGORY_LABELS[category] || category;
+            const amount = formatCurrency(expense.amount);
+            const dateLabel = parseDate(expense.date)?.toLocaleDateString() || expense.date || '—';
+
+            card.innerHTML = `
+                <button class="expense-card__header expense-card__header--compact" type="button" data-expense-toggle>
+                    <div>
+                        <h4>${categoryLabel} · ${amount}</h4>
+                        <p>${expense.title || 'Untitled expense'}</p>
+                    </div>
+                    <span class="expense-toggle">View</span>
+                </button>
+                <div class="expense-card__body">
+                    <div class="expense-meta">
+                        <span><strong>Vendor:</strong> ${expense.vendor || '—'}</span>
+                        <span><strong>Date:</strong> ${dateLabel}</span>
+                    </div>
+                    <p class="expense-notes">${expense.notes || 'No notes provided.'}</p>
+                    <div class="expense-actions">
+                        <button class="btn btn-outline btn-sm" data-receipt="${expense.receiptUrl || ''}">View Receipt</button>
+                    </div>
+                </div>
             `;
-            body.appendChild(row);
+
+            container.appendChild(card);
         });
     };
 
+    const updateMonthlyInsights = () => {
+        const nowKey = new Date().toISOString().slice(0, 7);
+        const monthExpenses = state.expenses.filter((expense) => {
+            const dateKey = getMonthKey(expense.date || expense.createdAt);
+            return dateKey === nowKey;
+        });
+
+        const total = monthExpenses.reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
+        const categoryTotals = monthExpenses.reduce((acc, expense) => {
+            const key = expense.category || 'misc';
+            acc[key] = (acc[key] || 0) + (Number(expense.amount) || 0);
+            return acc;
+        }, {});
+        const vendorTotals = monthExpenses.reduce((acc, expense) => {
+            const key = expense.vendor || 'Unknown';
+            acc[key] = (acc[key] || 0) + (Number(expense.amount) || 0);
+            return acc;
+        }, {});
+
+        const highestCategory = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+        const highestVendor = Object.entries(vendorTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+
+        const totalEl = document.getElementById('expense-total-month');
+        const categoryEl = document.getElementById('expense-top-category');
+        const vendorEl = document.getElementById('expense-top-vendor');
+        if (totalEl) totalEl.textContent = formatCurrency(total);
+        if (categoryEl) categoryEl.textContent = CATEGORY_LABELS[highestCategory] || highestCategory;
+        if (vendorEl) vendorEl.textContent = highestVendor;
+
+        renderCategoryChart(categoryTotals, total);
+        renderDateChart(monthExpenses);
+    };
+
+    const renderCategoryChart = (totals, total) => {
+        const container = document.getElementById('expense-category-chart');
+        if (!container) return;
+        container.innerHTML = '';
+        if (!total) {
+            container.innerHTML = '<div class="expense-empty">No category data yet.</div>';
+            return;
+        }
+
+        const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+        const size = 160;
+        const radius = 70;
+        const center = size / 2;
+        let cumulative = 0;
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+        svg.classList.add('expense-chart');
+
+        entries.forEach(([category, value]) => {
+            const startAngle = (cumulative / total) * Math.PI * 2;
+            cumulative += value;
+            const endAngle = (cumulative / total) * Math.PI * 2;
+
+            const x1 = center + radius * Math.cos(startAngle - Math.PI / 2);
+            const y1 = center + radius * Math.sin(startAngle - Math.PI / 2);
+            const x2 = center + radius * Math.cos(endAngle - Math.PI / 2);
+            const y2 = center + radius * Math.sin(endAngle - Math.PI / 2);
+            const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute(
+                'd',
+                `M ${center} ${center} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`
+            );
+            path.setAttribute('fill', CATEGORY_COLORS[category] || '#94a3b8');
+            svg.appendChild(path);
+        });
+
+        const legend = document.createElement('div');
+        legend.className = 'expense-chart-legend';
+        legend.innerHTML = entries
+            .map(
+                ([category, value]) => `
+                <div class="expense-chart-legend__item">
+                    <span class="dot" style="background:${CATEGORY_COLORS[category] || '#94a3b8'}"></span>
+                    <span>${CATEGORY_LABELS[category] || category}</span>
+                    <strong>${formatCurrency(value)}</strong>
+                </div>`
+            )
+            .join('');
+
+        container.appendChild(svg);
+        container.appendChild(legend);
+    };
+
+    const renderDateChart = (expenses) => {
+        const container = document.getElementById('expense-date-chart');
+        if (!container) return;
+        container.innerHTML = '';
+        if (!expenses.length) {
+            container.innerHTML = '<div class="expense-empty">No date data yet.</div>';
+            return;
+        }
+
+        const totals = expenses.reduce((acc, expense) => {
+            const dateKey = expense.date || parseDate(expense.createdAt)?.toISOString().slice(0, 10) || 'Unknown';
+            acc[dateKey] = (acc[dateKey] || 0) + (Number(expense.amount) || 0);
+            return acc;
+        }, {});
+
+        const entries = Object.entries(totals).sort((a, b) => a[0].localeCompare(b[0]));
+        const maxValue = Math.max(...entries.map(([, value]) => value));
+        const width = 320;
+        const height = 140;
+        const padding = 24;
+        const barWidth = (width - padding * 2) / entries.length;
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        svg.classList.add('expense-chart');
+
+        const linePoints = entries
+            .map(([_, value], index) => {
+                const x = padding + index * barWidth + barWidth / 2;
+                const y = height - padding - (value / maxValue) * (height - padding * 2);
+                return `${x},${y}`;
+            })
+            .join(' ');
+
+        entries.forEach(([dateKey, value], index) => {
+            const barHeight = (value / maxValue) * (height - padding * 2);
+            const x = padding + index * barWidth + 4;
+            const y = height - padding - barHeight;
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', x);
+            rect.setAttribute('y', y);
+            rect.setAttribute('width', Math.max(barWidth - 8, 6));
+            rect.setAttribute('height', barHeight);
+            rect.setAttribute('rx', 4);
+            rect.setAttribute('fill', '#2563eb');
+            svg.appendChild(rect);
+        });
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        line.setAttribute('points', linePoints);
+        line.setAttribute('fill', 'none');
+        line.setAttribute('stroke', '#06b6d4');
+        line.setAttribute('stroke-width', 2);
+        svg.appendChild(line);
+
+        container.appendChild(svg);
+    };
+
     const ensureReceiptModal = () => {
-        let modal = document.getElementById('expense-receipt-modal');
+        const modal = document.getElementById('expense-receipt-modal');
         if (!modal) return null;
         const close = modal.querySelector('.expense-modal__close');
         close?.addEventListener('click', () => modal.classList.remove('is-open'));
@@ -179,165 +311,107 @@
         return modal;
     };
 
-    const attachReceiptHandlers = () => {
-        const table = document.getElementById('expense-history-body');
+    const attachHandlers = () => {
+        const form = document.getElementById('expense-entry-form');
+        const cards = document.getElementById('expense-cards');
+        const receiptInput = document.getElementById('receiptUpload');
+        const receiptUrlInput = document.getElementById('expenseReceiptUrl');
         const modal = ensureReceiptModal();
-        if (!table || !modal) return;
-        table.addEventListener('click', (event) => {
-            const button = event.target.closest('button[data-receipt]');
-            if (!button) return;
-            const receipt = button.dataset.receipt;
-            modal.querySelector('.expense-modal__content img').src = receipt || '';
-            modal.querySelector('.expense-modal__content .expense-modal__link').textContent = receipt || 'No receipt URL provided.';
-            modal.querySelector('.expense-modal__content .expense-modal__link').href = receipt || '#';
-            modal.classList.add('is-open');
+
+        if (form) {
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                if (!window.firebaseDb || !window.firestoreFunctions) {
+                    setBanner('Connect Firebase to save expenses.', 'error');
+                    return;
+                }
+                if (!canManageExpenses()) {
+                    setBanner('Only accountant/admin users can save expenses.', 'error');
+                    return;
+                }
+
+                const { addDoc, collection, serverTimestamp } = window.firestoreFunctions;
+                const payload = {
+                    title: form.expenseTitle.value.trim(),
+                    vendor: form.expenseVendor.value.trim(),
+                    category: form.expenseCategory.value,
+                    amount: Number(form.expenseAmount.value) || 0,
+                    date: form.expenseDate.value,
+                    notes: form.expenseNotes.value.trim(),
+                    receiptUrl: form.dataset.receiptUrl || receiptUrlInput?.value || '',
+                    createdAt: serverTimestamp()
+                };
+
+                try {
+                    setBanner('', 'error');
+                    await addDoc(collection(window.firebaseDb, 'expenses'), payload);
+                    form.reset();
+                    form.dataset.receiptUrl = '';
+                    if (receiptUrlInput) receiptUrlInput.value = '';
+                    setUploadStatus('', 'info');
+                    setBanner('Expense saved successfully.', 'success');
+                } catch (error) {
+                    console.error('[ExpenseUI] Failed to save expense:', error);
+                    setBanner('Failed to save expense. Please retry.', 'error');
+                }
+            });
+        }
+
+        receiptInput?.addEventListener('change', async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            try {
+                setUploadStatus('Uploading receipt...', 'info');
+                const hasStorage = Boolean(window.firebaseStorage && window.storageFunctions);
+                const url = await uploadReceipt(file);
+                if (receiptUrlInput) receiptUrlInput.value = url;
+                if (form) form.dataset.receiptUrl = url;
+                if (hasStorage) {
+                    setUploadStatus('Receipt uploaded successfully.', 'success');
+                } else {
+                    setUploadStatus('Storage not configured. Using local preview URL only.', 'error');
+                }
+            } catch (error) {
+                console.error('[ExpenseUI] Receipt upload failed:', error);
+                setUploadStatus('Receipt upload failed. Use a public URL instead.', 'error');
+            }
+        });
+
+        cards?.addEventListener('click', (event) => {
+            const toggle = event.target.closest('[data-expense-toggle]');
+            if (toggle) {
+                toggle.parentElement.classList.toggle('is-open');
+                return;
+            }
+            const receiptButton = event.target.closest('button[data-receipt]');
+            if (receiptButton && modal) {
+                const receipt = receiptButton.dataset.receipt;
+                modal.querySelector('img').src = receipt || '';
+                modal.querySelector('.expense-modal__link').textContent = receipt || 'No receipt URL provided.';
+                modal.querySelector('.expense-modal__link').href = receipt || '#';
+                modal.classList.add('is-open');
+            }
         });
     };
 
-    const startExpenseListeners = () => {
+    const startExpenseListener = () => {
         if (!window.firebaseDb || !window.firestoreFunctions) return;
-        const { collection, onSnapshot, query, where, orderBy, doc } = window.firestoreFunctions;
-        const userId = window.firebaseState?.user?.uid || 'guest';
-
+        const { collection, onSnapshot, orderBy, query } = window.firestoreFunctions;
         if (state.unsubscribe) state.unsubscribe();
-        if (state.statsUnsubscribe) state.statsUnsubscribe();
-        if (state.limitsUnsubscribe) state.limitsUnsubscribe();
-
-        setLoading(true);
-        const expenseQuery = query(
-            collection(window.firebaseDb, 'expenses'),
-            where('employeeId', '==', userId),
-            orderBy('createdAt', 'desc')
-        );
-
-        state.unsubscribe = onSnapshot(expenseQuery, debounce((snapshot) => {
+        const expenseQuery = query(collection(window.firebaseDb, 'expenses'), orderBy('createdAt', 'desc'));
+        state.unsubscribe = onSnapshot(expenseQuery, (snapshot) => {
             state.expenses = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-            renderExpenseTable();
-            setLoading(false);
-        }, 200));
-
-        state.statsUnsubscribe = onSnapshot(
-            doc(window.firebaseDb, 'employeeExpenseStats', userId),
-            debounce((snapshot) => {
-                state.stats = snapshot.exists() ? snapshot.data() : null;
-                const totalEl = document.getElementById('expense-total-month');
-                if (totalEl) totalEl.textContent = formatCurrency(state.stats?.totalSpentThisMonth || 0);
-                const breakdownEl = document.getElementById('expense-category-breakdown');
-                if (breakdownEl) {
-                    const breakdown = state.stats?.categoryBreakdown || {};
-                    breakdownEl.innerHTML = Object.entries(CATEGORY_LABELS)
-                        .map(([key, label]) => `<div class="expense-breakdown__item"><span>${label}</span><strong>${formatCurrency(breakdown[key] || 0)}</strong></div>`)
-                        .join('');
-                }
-            }, 200)
-        );
-
-        state.limitsUnsubscribe = onSnapshot(
-            doc(window.firebaseDb, 'expenseLimits', userId),
-            debounce((snapshot) => {
-                state.limits = snapshot.exists() ? snapshot.data() : null;
-                const limitEl = document.getElementById('expense-limit-value');
-                if (limitEl) limitEl.textContent = formatCurrency(state.limits?.monthlyLimit || 0);
-            }, 200)
-        );
-    };
-
-    const handleSubmit = async (event) => {
-        event.preventDefault();
-        if (!window.firebaseDb || !window.firestoreFunctions) return;
-        const { addDoc, collection, serverTimestamp } = window.firestoreFunctions;
-        const form = event.target;
-        const amount = Number(form.amount.value || 0);
-        const vendor = form.vendor.value;
-        const category = form.category.value;
-        const date = form.date.value;
-        const receiptUrl = form.receiptUrl.value;
-        const userId = window.firebaseState?.user?.uid || 'guest';
-        const employeeName = window.firebaseState?.user?.displayName || window.firebaseState?.user?.email || 'Employee';
-        const ocrText = form.ocrText?.value || receiptUrl;
-        const ocrExtractedData = extractReceiptData(ocrText || '');
-
-        updateLimitChips(amount, category);
-
-        try {
-            await addDoc(collection(window.firebaseDb, 'expenses'), {
-                employeeId: userId,
-                employeeName,
-                amount,
-                vendor,
-                category,
-                date,
-                status: 'submitted',
-                receiptUrl,
-                payrollLinked: false,
-                payrollRunId: null,
-                createdAt: serverTimestamp(),
-                approvedAt: null,
-                approverId: null,
-                ocrExtractedData
-            });
-            form.reset();
-            setBanner('Expense submitted for approval.', 'success');
-            setTimeout(() => setBanner(''), 3000);
-        } catch (error) {
-            console.error('[ExpenseUI] Submit failed:', error);
-            setBanner('Failed to submit expense. Please retry.');
-        }
-    };
-
-    const attachFormHandlers = () => {
-        const form = document.getElementById('expense-submit-form');
-        if (!form) return;
-        if (!form.dataset.bound) {
-            form.addEventListener('submit', handleSubmit);
-            form.dataset.bound = 'true';
-        }
-
-        form.receiptUrl?.addEventListener('input', (event) => {
-            const data = extractReceiptData(event.target.value || '');
-            renderAiPreview(data);
-            if (!form.amount.value && data.amount) form.amount.value = data.amount;
-            if (!form.vendor.value && data.vendor) form.vendor.value = data.vendor;
-            if (!form.category.value && data.categoryGuess) form.category.value = data.categoryGuess;
-            updateLimitChips(Number(form.amount.value || data.amount || 0), form.category.value || data.categoryGuess);
-        });
-
-        form.amount?.addEventListener('input', () => {
-            updateLimitChips(Number(form.amount.value || 0), form.category.value || 'misc');
-        });
-        form.category?.addEventListener('change', () => {
-            updateLimitChips(Number(form.amount.value || 0), form.category.value || 'misc');
+            renderExpenseCards();
+            updateMonthlyInsights();
         });
     };
 
-    const attachFilterHandlers = () => {
-        ['expense-filter-status', 'expense-filter-category', 'expense-filter-from', 'expense-filter-to']
-            .forEach((id) => {
-                const el = document.getElementById(id);
-                if (el) {
-                    el.addEventListener('change', renderExpenseTable);
-                }
-            });
-    };
-
-    const init = () => {
-        if (state.initialized) return;
-        state.initialized = true;
-        const dateInput = document.getElementById('expenseDate');
-        if (dateInput && !dateInput.value) {
-            dateInput.value = new Date().toISOString().split('T')[0];
+    window.initializeExpenseUI = () => {
+        updateAccessNote();
+        if (!state.initialized) {
+            attachHandlers();
+            state.initialized = true;
         }
-        attachFormHandlers();
-        attachFilterHandlers();
-        attachReceiptHandlers();
-        startExpenseListeners();
+        startExpenseListener();
     };
-
-    window.initializeExpenseUI = init;
-
-    document.addEventListener('DOMContentLoaded', () => {
-        if (document.getElementById('expenses')) {
-            init();
-        }
-    });
 })(window);
