@@ -20,17 +20,6 @@ export const runSalaryAnomalyRules = ({ payrollHistory = [], payrollRecord = {} 
     });
   }
 
-  const currentReimbursement = toNumber(payrollRecord.reimbursement ?? payrollRecord.reimbursements ?? 0);
-  const avgReimbursement = average(recent.map((record) => record.reimbursement ?? record.reimbursements));
-  if (avgReimbursement > 0 && currentReimbursement > avgReimbursement * 1.5) {
-    violations.push({
-      type: 'Reimbursement Spike',
-      severity: 'Medium',
-      message: 'Reimbursements spiked significantly compared to recent history.',
-      recommendedFix: 'Review reimbursement claims and approvals for this cycle.',
-    });
-  }
-
   const currentDeductions = toNumber(payrollRecord.totalDeductions ?? payrollRecord.deductions ?? 0);
   const avgDeductions = average(recent.map((record) => record.totalDeductions ?? record.deductions));
   if (avgDeductions > 0 && currentDeductions < avgDeductions * 0.5) {

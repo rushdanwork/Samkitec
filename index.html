@@ -2002,91 +2002,61 @@
             }
         }
 
-        :root {
-            --travel-color: #3B82F6;
-            --meals-color: #F59E0B;
-            --office-color: #8B5CF6;
-            --misc-color: #94A3B8;
-            --fuel-color: #10B981;
-        }
-
-        .expense-page {
+        .erm-page {
             display: flex;
             flex-direction: column;
             gap: 24px;
         }
 
-        .expense-grid {
+        .erm-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: 24px;
         }
 
-        .expense-card {
+        .erm-card {
             background: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
             padding: 20px;
             transition: var(--transition);
         }
 
-        .expense-card:hover {
+        .erm-card:hover {
             transform: translateY(-2px);
         }
 
-        .expense-card__header {
+        .erm-card__header {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 12px;
             margin-bottom: 16px;
         }
 
-        .expense-card__header h3 {
+        .erm-card__header h3 {
             font-size: 1.1rem;
         }
 
-        .expense-card__header--compact {
-            width: 100%;
-            background: transparent;
-            border: none;
-            padding: 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            cursor: pointer;
-            text-align: left;
-        }
-
-        .expense-card__header--compact h4 {
-            font-size: 1rem;
-            margin-bottom: 4px;
-        }
-
-        .expense-toggle {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: #2563EB;
-        }
-
-        .expense-form {
+        .erm-form {
             display: grid;
             gap: 14px;
         }
 
-        .expense-form__row {
+        .erm-form__row {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 12px;
         }
 
-        .expense-form label {
+        .erm-form label {
             font-weight: 600;
             font-size: 0.9rem;
         }
 
-        .expense-form input,
-        .expense-form select,
-        .expense-form textarea {
+        .erm-form input,
+        .erm-form select,
+        .erm-form textarea {
             width: 100%;
             padding: 10px 12px;
             border: 1px solid #E2E8F0;
@@ -2095,15 +2065,15 @@
             transition: var(--transition);
         }
 
-        .expense-form input:focus,
-        .expense-form select:focus,
-        .expense-form textarea:focus {
+        .erm-form input:focus,
+        .erm-form select:focus,
+        .erm-form textarea:focus {
             border-color: #93C5FD;
             box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
             outline: none;
         }
 
-        .expense-badge {
+        .erm-badge {
             font-size: 0.75rem;
             padding: 4px 10px;
             border-radius: 999px;
@@ -2112,7 +2082,7 @@
             font-weight: 600;
         }
 
-        .expense-submit-btn {
+        .erm-submit-btn {
             background: #2563EB;
             color: white;
             border: none;
@@ -2123,49 +2093,78 @@
             transition: var(--transition);
         }
 
-        .expense-submit-btn:hover {
+        .erm-submit-btn:hover {
             box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.15);
-            animation: pulse 1.4s infinite;
         }
 
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
-            70% { box-shadow: 0 0 0 12px rgba(37, 99, 235, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
-        }
-
-        .expense-record .expense-card__body {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-            padding-top: 0;
-        }
-
-        .expense-record.is-open .expense-card__body {
-            max-height: 220px;
-            padding-top: 12px;
-        }
-
-        .expense-meta {
-            display: flex;
-            justify-content: space-between;
+        .erm-banner {
+            margin-top: 12px;
+            padding: 10px 14px;
+            border-radius: 10px;
             font-size: 0.85rem;
+            display: none;
+        }
+
+        .erm-banner.is-visible {
+            display: block;
+        }
+
+        .erm-banner.is-error {
+            background: rgba(239, 68, 68, 0.12);
+            color: #B91C1C;
+        }
+
+        .erm-banner.is-success {
+            background: rgba(16, 185, 129, 0.12);
+            color: #047857;
+        }
+
+        .erm-upload-status {
+            margin-top: 8px;
+            font-size: 0.8rem;
             color: #475569;
-            margin-bottom: 10px;
+            display: none;
         }
 
-        .expense-notes {
-            font-size: 0.9rem;
-            color: #0F172A;
-            margin-bottom: 12px;
+        .erm-upload-status.is-visible {
+            display: block;
         }
 
-        .expense-actions {
-            display: flex;
+        .erm-record {
+            border: 1px solid #E2E8F0;
+            border-radius: 14px;
+            padding: 16px;
+            display: grid;
             gap: 10px;
         }
 
-        .expense-empty {
+        .erm-record__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .erm-record__toggle {
+            border: none;
+            background: none;
+            font-weight: 600;
+            color: #2563EB;
+            cursor: pointer;
+        }
+
+        .erm-record__details {
+            display: none;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #0F172A;
+        }
+
+        .erm-record.is-open .erm-record__details {
+            display: grid;
+        }
+
+        .erm-empty {
             padding: 14px;
             border-radius: 10px;
             background: #F1F5F9;
@@ -2173,26 +2172,26 @@
             text-align: center;
         }
 
-        .expense-chart {
+        .erm-chart {
             width: 100%;
             height: auto;
             display: block;
             margin-bottom: 12px;
         }
 
-        .expense-chart-legend {
+        .erm-chart-legend {
             display: grid;
             gap: 8px;
         }
 
-        .expense-chart-legend__item {
+        .erm-chart-legend__item {
             display: flex;
             align-items: center;
             justify-content: space-between;
             font-size: 0.8rem;
         }
 
-        .expense-chart-legend__item .dot {
+        .erm-chart-legend__item .dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
@@ -2200,7 +2199,13 @@
             margin-right: 8px;
         }
 
-        .expense-modal {
+        .erm-metrics {
+            display: grid;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        .erm-modal {
             position: fixed;
             inset: 0;
             background: rgba(15, 23, 42, 0.6);
@@ -2213,12 +2218,12 @@
             z-index: 50;
         }
 
-        .expense-modal.is-open {
+        .erm-modal.is-open {
             opacity: 1;
             pointer-events: all;
         }
 
-        .expense-modal__content {
+        .erm-modal__content {
             background: white;
             padding: 24px;
             border-radius: 16px;
@@ -2228,65 +2233,21 @@
             transition: var(--transition);
         }
 
-        .expense-modal.is-open .expense-modal__content {
+        .erm-modal.is-open .erm-modal__content {
             transform: scale(1);
         }
 
-        .expense-modal__content img {
+        .erm-modal__content img {
             width: 100%;
             border-radius: 12px;
             margin-top: 12px;
         }
 
-        .expense-modal__close {
+        .erm-modal__close {
             background: none;
             border: none;
             font-size: 1.4rem;
             cursor: pointer;
-        }
-
-        .expense-banner {
-            margin-top: 12px;
-            padding: 10px 14px;
-            border-radius: 10px;
-            font-size: 0.85rem;
-            display: none;
-        }
-
-        .expense-banner.is-visible {
-            display: block;
-        }
-
-        .expense-banner.is-error {
-            background: rgba(239, 68, 68, 0.12);
-            color: #B91C1C;
-        }
-
-        .expense-banner.is-success {
-            background: rgba(16, 185, 129, 0.12);
-            color: #047857;
-        }
-
-        .expense-upload-status {
-            margin-top: 8px;
-            font-size: 0.8rem;
-            color: #475569;
-            display: none;
-        }
-
-        .expense-upload-status.is-visible {
-            display: block;
-        }
-
-        .expense-insights {
-            display: grid;
-            gap: 16px;
-        }
-
-        .expense-metrics {
-            display: grid;
-            gap: 8px;
-            font-size: 0.9rem;
         }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -2901,8 +2862,8 @@
                 <a href="#" class="menu-item" onclick="showSection('compliance-manager')">
                     <i class="fas fa-triangle-exclamation"></i> Compliance Risk Manager
                 </a>
-                <a href="#" class="menu-item" data-nav="expenses" onclick="showSection('expenses')">
-                    <i class="fas fa-receipt"></i> Expenses (Expense Record Management)
+                <a href="#" class="menu-item" data-nav="expense-records" onclick="showSection('expense-record-page')">
+                    <i class="fas fa-receipt"></i> Expense Records
                 </a>
                 <a href="#" class="menu-item" onclick="showSection('settings')">
                     <i class="fas fa-cog"></i> Settings
@@ -3123,108 +3084,8 @@
                 </div>
             </div>
 
-            <!-- Expense Management Section -->
-            <div id="expenses" class="page-section">
-                <div class="header">
-                    <h1><i class="fas fa-receipt"></i> Expense Record Management</h1>
-                    <div class="user-info">
-                        <span id="logged-in-user">Employee</span>
-                        <button onclick="logout()" class="btn btn-danger" style="margin-left: 10px; padding: 5px 10px;">
-                            <i class="fas fa-sign-out-alt"></i> Logout
-                        </button>
-                    </div>
-                </div>
-
-                <div id="expense-record-page" class="expense-page">
-                    <div class="expense-grid">
-                        <div class="expense-card">
-                            <div class="expense-card__header">
-                                <h3>Expense Entry</h3>
-                                <span class="expense-badge">Accountant/Admin</span>
-                            </div>
-                            <div id="expense-access-note" class="expense-banner is-visible"></div>
-                            <form id="expense-entry-form" class="expense-form">
-                                <div>
-                                    <label for="expenseTitle">Title</label>
-                                    <input type="text" id="expenseTitle" name="expenseTitle" placeholder="Expense title" required>
-                                </div>
-                                <div class="expense-form__row">
-                                    <div>
-                                        <label for="expenseVendor">Vendor</label>
-                                        <input type="text" id="expenseVendor" name="expenseVendor" placeholder="Vendor name" required>
-                                    </div>
-                                    <div>
-                                        <label for="expenseCategory">Category</label>
-                                        <select id="expenseCategory" name="expenseCategory" required>
-                                            <option value="">Select category</option>
-                                            <option value="travel">Travel</option>
-                                            <option value="meals">Meals</option>
-                                            <option value="office">Office</option>
-                                            <option value="software">Software</option>
-                                            <option value="utilities">Utilities</option>
-                                            <option value="fuel">Fuel</option>
-                                            <option value="misc">Misc</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="expense-form__row">
-                                    <div>
-                                        <label for="expenseAmount">Amount</label>
-                                        <input type="number" id="expenseAmount" name="expenseAmount" placeholder="0.00" required>
-                                    </div>
-                                    <div>
-                                        <label for="expenseDate">Date</label>
-                                        <input type="date" id="expenseDate" name="expenseDate" required>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label for="expenseNotes">Notes (optional)</label>
-                                    <textarea id="expenseNotes" name="expenseNotes" rows="3" placeholder="Add clarifying notes"></textarea>
-                                </div>
-                                <div>
-                                    <label for="receiptUpload">Receipt Image Upload</label>
-                                    <input type="file" id="receiptUpload" accept="image/*">
-                                    <div id="expense-upload-status" class="expense-upload-status"></div>
-                                </div>
-                                <div>
-                                    <label for="expenseReceiptUrl">Receipt URL (auto-generated)</label>
-                                    <input type="text" id="expenseReceiptUrl" name="expenseReceiptUrl" placeholder="Receipt URL will appear here" readonly>
-                                </div>
-                                <button class="expense-submit-btn" type="submit">Save Expense</button>
-                                <div id="expense-entry-banner" class="expense-banner"></div>
-                            </form>
-                        </div>
-
-                        <div class="expense-card expense-insights">
-                            <div class="expense-card__header">
-                                <h3>Monthly Insight Panel</h3>
-                                <span class="text-muted">Current month</span>
-                            </div>
-                            <div>
-                                <h4>Category Mix</h4>
-                                <div id="expense-category-chart"></div>
-                            </div>
-                            <div>
-                                <h4>Daily Trend</h4>
-                                <div id="expense-date-chart"></div>
-                            </div>
-                            <div class="expense-metrics">
-                                <div>Total monthly expense: <strong id="expense-total-month">₹0</strong></div>
-                                <div>Highest category: <strong id="expense-top-category">—</strong></div>
-                                <div>Highest vendor: <strong id="expense-top-vendor">—</strong></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="expense-card">
-                        <div class="expense-card__header">
-                            <h3>Expense Records</h3>
-                            <span class="text-muted">Real-time ledger</span>
-                        </div>
-                        <div id="expense-cards" class="expense-grid"></div>
-                    </div>
-                </div>
-            </div>
+            <!-- Expense Record Management Section -->
+            <div id="expense-record-page" class="page-section hidden"></div>
 
             <!-- Employees Section -->
             <div id="employees" class="page-section">
@@ -5349,7 +5210,7 @@
             const email = (user?.email || '').toLowerCase();
             if (email.includes('accountant')) return 'accountant';
             if (email.includes('admin')) return 'admin';
-            return 'employee';
+            return 'admin';
         }
 
         function canManageExpenses() {
@@ -5359,7 +5220,7 @@
         window.canManageExpenses = canManageExpenses;
 
         function updateExpenseNavVisibility() {
-            const expenseMenu = document.querySelector('[data-nav=\"expenses\"]');
+            const expenseMenu = document.querySelector('[data-nav=\"expense-records\"]');
             if (!expenseMenu) return;
             expenseMenu.style.display = canManageExpenses() ? '' : 'none';
         }
@@ -5372,7 +5233,12 @@
             });
             
             // Show selected section
-            document.getElementById(sectionId).classList.add('active');
+            const nextSection = document.getElementById(sectionId);
+            if (!nextSection) {
+                return;
+            }
+            nextSection.classList.add('active');
+            nextSection.classList.remove('hidden');
             
             // Update active menu item
             document.querySelectorAll('.sidebar-menu .menu-item').forEach(item => {
@@ -5398,13 +5264,13 @@
                 updatePayrollSummary();
             } else if (sectionId === 'compliance-manager') {
                 updateComplianceWidgets();
-            } else if (sectionId === 'expenses') {
+            } else if (sectionId === 'expense-record-page') {
                 if (!canManageExpenses()) {
                     showSection('dashboard');
                     return;
                 }
-                if (typeof window.initializeExpenseUI === 'function') {
-                    window.initializeExpenseUI();
+                if (typeof window.initializeExpenseRecordUI === 'function') {
+                    window.initializeExpenseRecordUI();
                 }
             } else if (sectionId === 'dashboard') {
                 requestDashboardRefresh('navigate-dashboard');
@@ -8752,21 +8618,12 @@ Employees: ${employeeSummary}`);
             showSection('reports');
         };
     </script>
-    <div id="expense-receipt-modal" class="expense-modal" aria-hidden="true">
-        <div class="expense-modal__content">
-            <div class="expense-card__header">
-                <h3>Receipt Preview</h3>
-                <button class="expense-modal__close" type="button">&times;</button>
-            </div>
-            <a class="expense-modal__link" href="#" target="_blank" rel="noreferrer">No receipt URL provided.</a>
-            <img src="" alt="Expense receipt preview">
-        </div>
-    </div>
 
     <script src="./complianceRulesIndia.js"></script>
     <script type="module" src="./complianceRiskEngine.js"></script>
     <script src="./complianceRiskUI.js"></script>
-    <script src="./expenseUI.js"></script>
+    <script type="module" src="./backend/expenseRecordService.js"></script>
+    <script type="module" src="./expenseRecordUI.js"></script>
     <script src="./payrollAnomalyDetector.js"></script>
     <script>
       document.addEventListener("DOMContentLoaded", () => {
