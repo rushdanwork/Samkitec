@@ -2,12 +2,13 @@ import {
   addDoc,
   collection,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
   where,
 } from 'firebase/firestore';
 
-import { getFirestoreDb, getServerTimestamp } from '../firebaseService.js';
+import { getFirestoreDb, getServerTimestamp, listenExpenseRecords } from '../firebaseService.js';
 
 const EXPENSES_COLLECTION = 'expenses';
 
@@ -28,10 +29,14 @@ export const addExpense = async (payload) => {
   return docRef.id;
 };
 
-export const getExpensesByMonth = async (monthKey) => {
+const padMonth = (value) => String(value).padStart(2, '0');
+
+export const getExpensesByMonth = async (month, year) => {
   const db = getFirestoreDb();
+  const monthKey = `${year}-${padMonth(month)}`;
+  const endDateValue = new Date(year, Number(month), 0).getDate();
   const startDate = `${monthKey}-01`;
-  const endDate = `${monthKey}-31`;
+  const endDate = `${monthKey}-${String(endDateValue).padStart(2, '0')}`;
   const expenseQuery = query(
     collection(db, EXPENSES_COLLECTION),
     where('date', '>=', startDate),
@@ -49,16 +54,48 @@ export const getAllExpenses = async () => {
   return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
 };
 
-export const groupExpensesByCategory = (expenses = []) =>
+export const groupByCategory = (expenses = []) =>
   expenses.reduce((acc, expense) => {
     const key = expense.category || 'misc';
     acc[key] = (acc[key] || 0) + (Number(expense.amount) || 0);
     return acc;
   }, {});
 
-export const groupExpensesByVendor = (expenses = []) =>
+export const groupByDate = (expenses = []) =>
   expenses.reduce((acc, expense) => {
-    const key = expense.vendor || 'Unknown';
+    const key = expense.date || 'Unknown';
     acc[key] = (acc[key] || 0) + (Number(expense.amount) || 0);
     return acc;
   }, {});
+
+export const uploadReceipt = (fileOrBase64) => {
+  if (!fileOrBase64) return Promise.resolve('');
+  if (typeof fileOrBase64 === 'string') {
+    return Promise.resolve(fileOrBase64);
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Failed to read receipt image.'));
+    reader.readAsDataURL(fileOrBase64);
+  });
+};
+
+export const onExpensesChanged = (callback, onError) => {
+  if (listenExpenseRecords) {
+    return listenExpenseRecords(callback, onError);
+  }
+  const db = getFirestoreDb();
+  const expenseQuery = query(collection(db, EXPENSES_COLLECTION), orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    expenseQuery,
+    (snapshot) => {
+      const records = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+      callback(records);
+    },
+    (error) => {
+      if (onError) onError(error);
+    }
+  );
+};

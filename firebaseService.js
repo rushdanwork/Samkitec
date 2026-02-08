@@ -7,6 +7,8 @@ import {
   getDocs,
   getFirestore,
   onSnapshot,
+  orderBy,
+  query,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore';
@@ -96,6 +98,7 @@ export const listenComplianceSummary = (onSuccess, onError) =>
 
 const DIAGNOSTICS_COLLECTION = 'connectivityDiagnostics';
 const REALTIME_COLLECTION = 'attendanceRecords';
+const EXPENSES_COLLECTION = 'expenses';
 
 export const runTestWriteRead = async (testDocId) => {
   const db = getFirestoreDb();
@@ -159,6 +162,20 @@ export const testRealtimeListener = async () => {
   const result = await Promise.race([listenPromise, timeoutPromise]);
   clearTimeout(timeoutId);
   return result;
+};
+
+export const listenExpenseRecords = (onSuccess, onError) => {
+  const db = getFirestoreDb();
+  return onSnapshot(
+    query(collection(db, EXPENSES_COLLECTION), orderBy('createdAt', 'desc')),
+    (snapshot) => {
+      const records = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+      onSuccess(records);
+    },
+    (error) => {
+      if (onError) onError(error);
+    }
+  );
 };
 
 export const firebaseConnectivityCheck = async () => {
