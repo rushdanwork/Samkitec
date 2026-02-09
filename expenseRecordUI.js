@@ -479,6 +479,18 @@ window.initializeExpenseRecordUI = initializeExpenseRecordUI;
 
 export const renderExpenseRecordPage = () => {
   console.log('[ERM] renderExpenseRecordPage invoked.');
+  if (document.readyState === 'loading') {
+    console.log('[ERM] DOM not ready. Deferring ERM initialization.');
+    document.addEventListener(
+      'DOMContentLoaded',
+      () => {
+        console.log('[ERM] DOM ready. Running deferred ERM initialization.');
+        renderExpenseRecordPage();
+      },
+      { once: true }
+    );
+    return;
+  }
   const canManage = typeof window.canManageExpenses === 'function' && window.canManageExpenses();
   if (!canManage) {
     console.warn('[ERM] Expense record access denied.');
