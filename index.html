@@ -4515,17 +4515,8 @@
         </div>
     </div>
 
-    <script>
-        console.log("[SCRIPT IMPORT] index.html loader executing");
-    </script>
-    <script
-        src="./backend/expenseRecordService.js"
-        onload="console.log('[SCRIPT IMPORT] backend/expenseRecordService.js loaded')"
-    ></script>
-    <script
-        src="./expenseRecordUI.js"
-        onload="console.log('[SCRIPT IMPORT] expenseRecordUI.js loaded')"
-    ></script>
+    <script type="module" src="./backend/expenseRecordService.js"></script>
+    <script type="module" src="./expenseRecordUI.js"></script>
     <script src="payrollAnomalyDetector.js"></script>
     <script>
         const EMPLOYEE_STORAGE_KEY = 'employees';
