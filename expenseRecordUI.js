@@ -510,34 +510,28 @@ export const initializeExpenseRecordUI = () => {
 window.initializeExpenseRecordUI = initializeExpenseRecordUI;
 
 export const renderExpenseRecordPage = () => {
-  console.log('[ERM] renderExpenseRecordPage() called');
-  try {
-    if (document.readyState === 'loading') {
-      console.log('[ERM] DOM not ready. Deferring ERM initialization.');
-      document.addEventListener(
-        'DOMContentLoaded',
-        () => {
-          console.log('[ERM] DOM ready. Running deferred ERM initialization.');
-          renderExpenseRecordPage();
-        },
-        { once: true }
-      );
-      return;
-    }
-    const canManage = typeof window.canManageExpenses === 'function' && window.canManageExpenses();
-    if (!canManage) {
-      console.warn('[ERM] Expense record access denied.');
-      return;
-    }
-    const container = document.getElementById('expense-record-page');
-    if (!container) {
-      console.warn('[ERM] Expense record container not found.');
-      return;
-    }
-    console.log('[ERM] Initializing expense record UI.');
-    initializeExpenseRecordUI();
-  } catch (err) {
-    console.error('[ERM] Error in renderExpenseRecordPage:', err);
+  console.log('[ERM] renderExpenseRecordPage invoked.');
+  if (document.readyState === 'loading') {
+    console.log('[ERM] DOM not ready. Deferring ERM initialization.');
+    document.addEventListener(
+      'DOMContentLoaded',
+      () => {
+        console.log('[ERM] DOM ready. Running deferred ERM initialization.');
+        renderExpenseRecordPage();
+      },
+      { once: true }
+    );
+    return;
+  }
+  const canManage = typeof window.canManageExpenses === 'function' && window.canManageExpenses();
+  if (!canManage) {
+    console.warn('[ERM] Expense record access denied.');
+    return;
+  }
+  const container = document.getElementById('expense-record-page');
+  if (!container) {
+    console.warn('[ERM] Expense record container not found.');
+    return;
   }
 };
 
