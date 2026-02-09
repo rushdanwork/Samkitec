@@ -5270,6 +5270,10 @@
             } else if (sectionId === 'compliance-manager') {
                 updateComplianceWidgets();
             } else if (sectionId === 'expense-record-page') {
+                const expenseSection = document.getElementById('expense-record-page');
+                if (expenseSection) {
+                    expenseSection.classList.remove('hidden');
+                }
                 if (!canManageExpenses()) {
                     showSection('dashboard');
                     return;
