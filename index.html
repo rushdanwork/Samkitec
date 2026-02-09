@@ -4515,8 +4515,17 @@
         </div>
     </div>
 
-    <script type="module" src="./backend/expenseRecordService.js"></script>
-    <script type="module" src="expenseRecordUI.js"></script>
+    <script>
+        console.log("[SCRIPT IMPORT] index.html loader executing");
+    </script>
+    <script
+        src="./backend/expenseRecordService.js"
+        onload="console.log('[SCRIPT IMPORT] backend/expenseRecordService.js loaded')"
+    ></script>
+    <script
+        src="./expenseRecordUI.js"
+        onload="console.log('[SCRIPT IMPORT] expenseRecordUI.js loaded')"
+    ></script>
     <script src="payrollAnomalyDetector.js"></script>
     <script>
         const EMPLOYEE_STORAGE_KEY = 'employees';
@@ -5270,6 +5279,10 @@
             } else if (sectionId === 'compliance-manager') {
                 updateComplianceWidgets();
             } else if (sectionId === 'expense-record-page') {
+                const expenseSection = document.getElementById('expense-record-page');
+                if (expenseSection) {
+                    expenseSection.classList.remove('hidden');
+                }
                 if (!canManageExpenses()) {
                     showSection('dashboard');
                     return;
