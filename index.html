@@ -2862,7 +2862,7 @@
                 <a href="#" class="menu-item" onclick="showSection('compliance-manager')">
                     <i class="fas fa-triangle-exclamation"></i> Compliance Risk Manager
                 </a>
-                <a href="#" class="menu-item" data-nav="expense-records" onclick="showSection('expense-record-page')">
+                <a href="#" class="menu-item" data-nav="expense-records" onclick="showSection('expense-record-page'); renderExpenseRecordPage();">
                     <i class="fas fa-receipt"></i> Expense Records
                 </a>
                 <a href="#" class="menu-item" onclick="showSection('settings')">
@@ -4515,6 +4515,8 @@
         </div>
     </div>
 
+    <script type="module" src="./backend/expenseRecordService.js"></script>
+    <script type="module" src="expenseRecordUI.js"></script>
     <script src="payrollAnomalyDetector.js"></script>
     <script>
         const EMPLOYEE_STORAGE_KEY = 'employees';
@@ -5246,7 +5248,10 @@
             });
             
             // Find and activate the corresponding menu item
-            const menuItem = document.querySelector(`.sidebar-menu .menu-item[onclick="showSection('${sectionId}')"]`);
+            let menuItem = document.querySelector(`.sidebar-menu .menu-item[onclick="showSection('${sectionId}')"]`);
+            if (!menuItem && sectionId === 'expense-record-page') {
+                menuItem = document.querySelector('.sidebar-menu .menu-item[data-nav="expense-records"]');
+            }
             if (menuItem) {
                 menuItem.classList.add('active');
             }
@@ -5268,9 +5273,6 @@
                 if (!canManageExpenses()) {
                     showSection('dashboard');
                     return;
-                }
-                if (typeof window.initializeExpenseRecordUI === 'function') {
-                    window.initializeExpenseRecordUI();
                 }
             } else if (sectionId === 'dashboard') {
                 requestDashboardRefresh('navigate-dashboard');
@@ -8622,8 +8624,6 @@ Employees: ${employeeSummary}`);
     <script src="./complianceRulesIndia.js"></script>
     <script type="module" src="./complianceRiskEngine.js"></script>
     <script src="./complianceRiskUI.js"></script>
-    <script type="module" src="./backend/expenseRecordService.js"></script>
-    <script type="module" src="./expenseRecordUI.js"></script>
     <script src="./payrollAnomalyDetector.js"></script>
     <script>
       document.addEventListener("DOMContentLoaded", () => {

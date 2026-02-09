@@ -476,3 +476,21 @@ export const initializeExpenseRecordUI = () => {
 };
 
 window.initializeExpenseRecordUI = initializeExpenseRecordUI;
+
+export const renderExpenseRecordPage = () => {
+  console.log('[ERM] renderExpenseRecordPage invoked.');
+  const canManage = typeof window.canManageExpenses === 'function' && window.canManageExpenses();
+  if (!canManage) {
+    console.warn('[ERM] Expense record access denied.');
+    return;
+  }
+  const container = document.getElementById('expense-record-page');
+  if (!container) {
+    console.warn('[ERM] Expense record container not found.');
+    return;
+  }
+  console.log('[ERM] Initializing expense record UI.');
+  initializeExpenseRecordUI();
+};
+
+window.renderExpenseRecordPage = renderExpenseRecordPage;
