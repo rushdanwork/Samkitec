@@ -5,12 +5,29 @@
         High: 'severity-high'
     };
 
+    const FALLBACK_VIOLATION_MESSAGE = 'Compliance rule triggered. Review the payroll and attendance evidence for this employee.';
+
     const formatTimestamp = (value) => {
         if (!value) return '--';
         if (typeof value?.toDate === 'function') return value.toDate().toLocaleString();
         const parsed = new Date(value);
         return Number.isNaN(parsed.getTime()) ? '--' : parsed.toLocaleString();
     };
+
+    const normalizeSeverity = (value) => {
+        if (!value) return 'Low';
+        const normal = String(value).trim().toLowerCase();
+        if (normal === 'high') return 'High';
+        if (normal === 'medium') return 'Medium';
+        return 'Low';
+    };
+
+    const normalizeViolation = (violation = {}) => ({
+        type: violation.type || 'Unknown Rule',
+        severity: normalizeSeverity(violation.severity),
+        message: violation.message || FALLBACK_VIOLATION_MESSAGE,
+        recommendedFix: violation.recommendedFix || 'Review and apply the relevant compliance remediation.'
+    });
 
     const ensureModal = () => {
         let modal = document.getElementById('compliance-detail-modal');
@@ -54,7 +71,7 @@
         if (scoreEl) scoreEl.textContent = `${averageScore}`;
 
         const lastEvaluated = reports
-            .map((report) => report.summary?.lastEvaluated)
+            .map((report) => report.summary?.lastEvaluated || report.summary?.lastEvaluatedIso)
             .filter(Boolean)
             .sort((a, b) => {
                 const aDate = typeof a?.toDate === 'function' ? a.toDate().getTime() : new Date(a).getTime();
@@ -73,13 +90,20 @@
         return 'fa-circle-check';
     };
 
+    const extractReportViolations = (report) => {
+        const direct = Array.isArray(report.violations) ? report.violations : [];
+        const top = Array.isArray(report.topViolations) ? report.topViolations : [];
+        const source = direct.length ? direct : top;
+        return source.map((item) => normalizeViolation(item));
+    };
+
     const renderRiskCards = (reports) => {
         const container = document.getElementById('compliance-risk-cards');
         if (!container) return;
         container.innerHTML = '';
 
         const violations = reports.flatMap((report) =>
-            (report.violations || []).map((violation) => ({
+            extractReportViolations(report).map((violation) => ({
                 ...violation,
                 employeeName: report.summary?.employeeName,
             }))
@@ -130,11 +154,12 @@
 
         sorted.forEach((report) => {
             const row = document.createElement('tr');
-            const severityClass = SEVERITY_CLASS[report.summary?.riskLevel] || '';
+            const riskLevel = normalizeSeverity(report.summary?.riskLevel);
+            const severityClass = SEVERITY_CLASS[riskLevel] || '';
             row.innerHTML = `
                 <td>${report.summary?.employeeName || 'Unknown'}</td>
                 <td>${report.summary?.riskScore ?? 0}</td>
-                <td><span class="severity-chip ${severityClass}">${report.summary?.riskLevel || 'Low'}</span></td>
+                <td><span class="severity-chip ${severityClass}">${riskLevel}</span></td>
                 <td><button class="btn btn-outline view-compliance-details" data-employee="${report.id}">View Details</button></td>
             `;
             tableBody.appendChild(row);
@@ -149,7 +174,7 @@
             const snapshot = await getDoc(violationsRef);
             if (!snapshot.exists()) return [];
             const data = snapshot.data();
-            return Array.isArray(data?.list) ? data.list : [];
+            return Array.isArray(data?.list) ? data.list.map((item) => normalizeViolation(item)) : [];
         } catch (error) {
             console.warn('[ComplianceUI] Failed to load violations:', error);
             return [];
@@ -161,15 +186,15 @@
         const modalBody = document.getElementById('compliance-detail-body');
         if (!modalBody || !report) return;
 
-        const initialViolations = Array.isArray(report.violations) ? report.violations : [];
+        const initialViolations = extractReportViolations(report);
         modalBody.innerHTML = `
             <div class="detail-summary">
                 <div>
                     <strong>${report.summary?.employeeName || 'Unknown Employee'}</strong>
-                    <div class="text-muted">Last evaluated: ${formatTimestamp(report.summary?.lastEvaluated)}</div>
+                    <div class="text-muted">Last evaluated: ${formatTimestamp(report.summary?.lastEvaluated || report.summary?.lastEvaluatedIso)}</div>
                 </div>
-                <span class="severity-chip ${SEVERITY_CLASS[report.summary?.riskLevel] || ''}">
-                    ${report.summary?.riskLevel || 'Low'} Risk
+                <span class="severity-chip ${SEVERITY_CLASS[normalizeSeverity(report.summary?.riskLevel)] || ''}">
+                    ${normalizeSeverity(report.summary?.riskLevel)} Risk
                 </span>
             </div>
             <div class="detail-violations">
@@ -197,7 +222,7 @@
                     <span class="text-muted">${violation.type}</span>
                 </div>
                 <div>${violation.message}</div>
-                <div class="text-muted">Suggested fix: ${violation.recommendedFix || 'Review and apply the relevant compliance remediation.'}</div>
+                <div class="text-muted">Suggested fix: ${violation.recommendedFix}</div>
             `;
             listContainer.appendChild(item);
         });
@@ -245,10 +270,10 @@
 
     const listenComplianceReports = () => {
         if (!window.firebaseDb || !window.firestoreFunctions) return;
-        const { collection, onSnapshot } = window.firestoreFunctions;
+        const { collection, onSnapshot, orderBy, query } = window.firestoreFunctions;
 
         onSnapshot(
-            collection(window.firebaseDb, 'complianceViolations'),
+            query(collection(window.firebaseDb, 'complianceViolations'), orderBy('summary.riskScore', 'desc')),
             (snapshot) => {
                 const reports = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
                 renderSummary(reports);
