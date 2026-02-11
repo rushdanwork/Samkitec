@@ -22,35 +22,26 @@ const formatCurrency = (value) =>
     Number(value) || 0
   );
 
-const toMonthKey = (dateStr) => (dateStr ? String(dateStr).slice(0, 7) : '');
+  const CATEGORY_OPTIONS = ['Travel', 'Meals', 'Supplies', 'Maintenance', 'Misc'];
 
-const resolveDateString = (expense) => {
-  if (expense?.date) return expense.date;
-  const created = expense?.createdAt;
-  if (created?.toDate) return created.toDate().toISOString().slice(0, 10);
-  if (created?.seconds) return new Date(created.seconds * 1000).toISOString().slice(0, 10);
-  return '';
-};
+  const formatCurrency = (value) =>
+    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(
+      Number(value) || 0
+    );
 
-const normalizeExpenses = (expenses = []) =>
-  expenses.map((expense) => ({
-    ...expense,
-    date: resolveDateString(expense),
-  }));
+  const toYearMonth = (dateValue) =>
+    dateValue ? String(dateValue).slice(0, 7) : new Date().toISOString().slice(0, 7);
 
-const groupByVendor = (expenses = []) =>
-  expenses.reduce((acc, expense) => {
-    const key = expense.vendor || 'Unknown';
-    acc[key] = (acc[key] || 0) + (Number(expense.amount) || 0);
-    return acc;
-  }, {});
+  const resolveDateString = (expense) => {
+    if (!expense) return '';
+    if (expense.date) return expense.date;
+    const created = expense.createdAt;
+    if (created?.toDate) return created.toDate().toISOString().slice(0, 10);
+    if (created?.seconds) return new Date(created.seconds * 1000).toISOString().slice(0, 10);
+    return '';
+  };
 
-const findTopKey = (grouped) => {
-  const entries = Object.entries(grouped);
-  if (!entries.length) return '—';
-  const [topKey] = entries.sort((a, b) => b[1] - a[1])[0];
-  return topKey;
-};
+  const getService = () => window.expenseRecordService;
 
 const buildLayout = (container) => {
   console.log('[ERM] buildLayout() called');
@@ -66,70 +57,97 @@ const buildLayout = (container) => {
       </div>
     </div>
 
-    <div class="erm-page">
-      <div class="erm-grid">
-        <div class="erm-card">
-          <div class="erm-card__header">
-            <h3>Expense Entry</h3>
-            <span class="erm-badge">Accountant/Admin</span>
+  const buildLayout = (container) => {
+    console.log('[ERM] buildLayout() called');
+    try {
+      container.innerHTML = `
+        <div class="header">
+          <h1><i class="fas fa-receipt"></i> Expense Records</h1>
+          <div class="user-info">
+            <span class="text-muted">Expense Record Management</span>
           </div>
-          <div id="erm-access-note" class="erm-banner"></div>
-          <form id="erm-expense-form" class="erm-form">
-            <div>
-              <label for="ermTitle">Title</label>
-              <input type="text" id="ermTitle" name="ermTitle" placeholder="Expense title" required>
-            </div>
-            <div class="erm-form__row">
-              <div>
-                <label for="ermVendor">Vendor</label>
-                <input type="text" id="ermVendor" name="ermVendor" placeholder="Vendor name" required>
-              </div>
-              <div>
-                <label for="ermCategory">Category</label>
-                <select id="ermCategory" name="ermCategory" required>
-                  <option value="">Select category</option>
-                  ${CATEGORY_OPTIONS.map(
-                    (category) => `<option value="${category.toLowerCase()}">${category}</option>`
-                  ).join('')}
-                </select>
-              </div>
-            </div>
-            <div class="erm-form__row">
-              <div>
-                <label for="ermAmount">Amount</label>
-                <input type="number" id="ermAmount" name="ermAmount" placeholder="0.00" min="0" step="0.01" required>
-              </div>
-              <div>
-                <label for="ermDate">Date</label>
-                <input type="date" id="ermDate" name="ermDate" required>
-              </div>
-            </div>
-            <div>
-              <label for="ermNotes">Notes (optional)</label>
-              <textarea id="ermNotes" name="ermNotes" rows="3" placeholder="Add clarifying notes"></textarea>
-            </div>
-            <div>
-              <label for="ermReceiptUpload">Receipt Upload</label>
-              <input type="file" id="ermReceiptUpload" accept="image/*">
-              <div id="erm-upload-status" class="erm-upload-status"></div>
-            </div>
-            <div>
-              <label for="ermReceiptUrl">Receipt URL (auto-generated)</label>
-              <input type="text" id="ermReceiptUrl" name="ermReceiptUrl" placeholder="Receipt URL will appear here" readonly>
-            </div>
-            <button class="erm-submit-btn" type="submit">Save Expense</button>
-            <div id="erm-entry-banner" class="erm-banner"></div>
-          </form>
         </div>
 
-        <div class="erm-card">
-          <div class="erm-card__header">
-            <h3>Monthly Insight Panel</h3>
-            <span class="text-muted" id="erm-month-label">Current month</span>
+        <div class="row" style="gap: 20px;">
+          <div class="col-md-6">
+            <div class="summary-card">
+              <h4 class="summary-title">New Expense</h4>
+              <form id="erm-expense-form" class="form">
+                <div class="form-group">
+                  <label for="erm-date">Date</label>
+                  <input type="date" id="erm-date" class="form-control" required />
+                </div>
+                <div class="form-group">
+                  <label for="erm-category">Category</label>
+                  <select id="erm-category" class="form-control" required>
+                    <option value="">Select category</option>
+                    ${CATEGORY_OPTIONS.map(
+                      (category) => `<option value="${category}">${category}</option>`
+                    ).join('')}
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="erm-amount">Amount</label>
+                  <input type="number" id="erm-amount" class="form-control" min="0" step="0.01" required />
+                </div>
+                <div class="form-group">
+                  <label for="erm-vendor">Vendor</label>
+                  <input type="text" id="erm-vendor" class="form-control" placeholder="Vendor name" required />
+                </div>
+                <div class="form-group">
+                  <label for="erm-notes">Notes</label>
+                  <textarea id="erm-notes" class="form-control" rows="3" placeholder="Optional notes"></textarea>
+                </div>
+                <div class="form-group">
+                  <label for="erm-receipt">Receipt Upload</label>
+                  <input type="file" id="erm-receipt" class="form-control" accept="image/*" />
+                  <small id="erm-receipt-status" class="text-muted"></small>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Expense</button>
+                <div id="erm-form-banner" class="text-muted" style="margin-top: 10px;"></div>
+              </form>
+            </div>
           </div>
-          <div>
-            <h4>Category Mix</h4>
-            <div id="erm-category-chart"></div>
+
+          <div class="col-md-6">
+            <div class="summary-card">
+              <h4 class="summary-title">Monthly Summary</h4>
+              <div style="display: grid; gap: 10px;">
+                <div>
+                  <span class="text-muted">Month</span>
+                  <div id="erm-month-label" style="font-weight: 600;"></div>
+                </div>
+                <div>
+                  <span class="text-muted">Total Spend</span>
+                  <div id="erm-monthly-total" style="font-size: 1.4rem; font-weight: 700;">
+                    ${formatCurrency(0)}
+                  </div>
+                </div>
+                <div>
+                  <span class="text-muted">Total Records</span>
+                  <div id="erm-monthly-count" style="font-weight: 600;">0</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="summary-card" style="margin-top: 20px;">
+              <h4 class="summary-title">Recent Expenses</h4>
+              <div class="table-container" style="max-height: 360px; overflow-y: auto;">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Category</th>
+                      <th>Vendor</th>
+                      <th>Amount</th>
+                      <th>Receipt</th>
+                    </tr>
+                  </thead>
+                  <tbody id="erm-expense-tbody"></tbody>
+                </table>
+              </div>
+              <div id="erm-empty-state" class="text-muted" style="margin-top: 10px;"></div>
+            </div>
           </div>
           <div>
             <h4>Daily Trend</h4>
@@ -353,21 +371,47 @@ const setupReceiptModal = () => {
     if (image) image.src = '';
   };
 
-  closeButton?.addEventListener('click', closeModal);
-  modal.addEventListener('click', (event) => {
-    if (event.target === modal) closeModal();
-  });
+  const renderExpenses = () => {
+    console.log('[ERM] renderRecords() called');
+    try {
+      const tbody = document.getElementById('erm-expense-tbody');
+      const emptyState = document.getElementById('erm-empty-state');
+      if (!tbody) return;
 
-  return (receiptUrl) => {
-    if (!link || !image) return;
-    const url = receiptUrl || '';
-    link.textContent = url ? 'Open receipt in new tab' : 'No receipt URL provided.';
-    link.href = url || '#';
-    image.src = url || '';
-    modal.classList.add('is-open');
-    modal.setAttribute('aria-hidden', 'false');
+      if (!state.expenses.length) {
+        tbody.innerHTML = '';
+        if (emptyState) {
+          emptyState.textContent = 'No expenses recorded yet.';
+        }
+        return;
+      }
+
+      if (emptyState) {
+        emptyState.textContent = '';
+      }
+
+      tbody.innerHTML = '';
+      state.expenses.forEach((expense, index) => {
+        const row = document.createElement('tr');
+        const dateLabel = resolveDateString(expense);
+        const receipt = expense.receiptURL
+          ? `<a href="${expense.receiptURL}" target="_blank" rel="noreferrer">View</a>`
+          : '—';
+        const highlightStyle = index < 3 ? 'background-color: rgba(37, 99, 235, 0.08);' : '';
+        row.setAttribute('style', highlightStyle);
+        row.innerHTML = `
+          <td>${dateLabel || '—'}</td>
+          <td>${expense.category || '—'}</td>
+          <td>${expense.vendor || '—'}</td>
+          <td>${formatCurrency(expense.amount)}</td>
+          <td>${receipt}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    } catch (err) {
+      console.error('[ERM] Error in renderRecords:', err);
+    }
   };
-};
 
 const setupForm = () => {
   console.log('[ERM] setupForm() called');
@@ -447,24 +491,79 @@ const setupForm = () => {
   }
 };
 
-const setupRecordInteractions = (openModal) => {
-  const container = document.getElementById('erm-records');
-  if (!container) return;
-  container.addEventListener('click', (event) => {
-    const toggle = event.target.closest('[data-toggle]');
-    if (toggle) {
-      const record = toggle.closest('.erm-record');
-      if (record) record.classList.toggle('is-open');
-      return;
-    }
+  const setupForm = () => {
+    console.log('[ERM] setupForm() called');
+    try {
+      const form = document.getElementById('erm-expense-form');
+      const receiptInput = document.getElementById('erm-receipt');
+      const receiptStatus = document.getElementById('erm-receipt-status');
+      const banner = document.getElementById('erm-form-banner');
+      const dateInput = document.getElementById('erm-date');
+      const categoryInput = document.getElementById('erm-category');
+      const amountInput = document.getElementById('erm-amount');
+      const vendorInput = document.getElementById('erm-vendor');
+      const notesInput = document.getElementById('erm-notes');
 
-    const receiptButton = event.target.closest('[data-receipt]');
-    if (receiptButton) {
-      const url = receiptButton.getAttribute('data-receipt');
-      if (openModal) openModal(url);
+      if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+
+      form?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (banner) banner.textContent = '';
+        if (receiptStatus) receiptStatus.textContent = '';
+        const service = getService();
+        if (!service) {
+          console.error('[ERM] Expense service not available.');
+          if (banner) banner.textContent = 'Expense service is unavailable.';
+          return;
+        }
+
+        try {
+          const file = receiptInput?.files?.[0];
+          let receiptURL = '';
+          if (file) {
+            if (receiptStatus) receiptStatus.textContent = 'Uploading receipt...';
+            receiptURL = await service.uploadReceipt(file);
+            if (receiptStatus) receiptStatus.textContent = 'Receipt uploaded.';
+          }
+
+          await service.addExpense({
+            date: dateInput?.value,
+            amount: amountInput?.value,
+            category: categoryInput?.value,
+            vendor: vendorInput?.value,
+            notes: notesInput?.value,
+            receiptURL,
+          });
+
+          if (banner) banner.textContent = 'Expense saved successfully.';
+          form.reset();
+          if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+        } catch (err) {
+          console.error('[ERM] Error in save expense:', err);
+          if (banner) banner.textContent = 'Failed to save expense. Please retry.';
+        }
+      });
+    } catch (err) {
+      console.error('[ERM] Error in setupForm:', err);
     }
-  });
-};
+  };
+
+  const initializeExpenseRecordUI = () => {
+    console.log('[ERM] initializeExpenseRecordUI() called');
+    try {
+      const container = ensureContainer();
+      if (!container) return;
+      if (!state.initialized) {
+        buildLayout(container);
+        setupForm();
+        state.initialized = true;
+      }
+      startExpenseListener();
+      syncUI();
+    } catch (err) {
+      console.error('[ERM] Error in initializeExpenseRecordUI:', err);
+    }
+  };
 
 const startRealtimeListener = () => {
   console.log('[ERM] startRealtimeListener() called');
@@ -535,4 +634,5 @@ export const renderExpenseRecordPage = () => {
   }
 };
 
-window.renderExpenseRecordPage = renderExpenseRecordPage;
+  window.renderExpenseRecordPage = renderExpenseRecordPage;
+})();
