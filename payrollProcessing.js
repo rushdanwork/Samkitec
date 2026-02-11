@@ -24,5 +24,27 @@ export const buildPayrollRunPayload = ({
 
 export const savePayroll = async ({ month, year, payrollData }) => {
   const payload = buildPayrollRunPayload({ month, year, payrollData });
-  return savePayrollRun(payload);
+  const payrollRunId = await savePayrollRun(payload);
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('payrollRunCompleted', {
+        detail: {
+          payrollRunId,
+          month,
+          year,
+          employeeCount: payload.employeeCount,
+          totalPayout: payload.totalPayout,
+        },
+      })
+    );
+
+    if (typeof window.runComplianceScan === 'function') {
+      window.runComplianceScan('payrollRunCompleted').catch((error) => {
+        console.error('[Payroll] Compliance scan trigger failed after payroll completion.', error);
+      });
+    }
+  }
+
+  return payrollRunId;
 };
