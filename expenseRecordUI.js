@@ -257,48 +257,61 @@ const renderCategoryChart = (totals) => {
     return;
   }
 
-  const total = entries.reduce((sum, [, value]) => sum + value, 0);
-  const colors = ['#2563EB', '#F59E0B', '#10B981', '#8B5CF6', '#EF4444'];
-  let offset = 25;
+  function renderERMCategoryChart(monthlyExpenses) {
+    console.log("[ERM] renderERMCategoryChart() called");
+    try {
+      const container = document.getElementById("erm-category-chart");
+      if (!container) return;
 
-  const slices = entries
-    .map(([label, value], index) => {
-      const percentage = (value / total) * 100;
-      const dash = `${percentage} ${100 - percentage}`;
-      const stroke = colors[index % colors.length];
-      const slice = `<circle r="15.915" cx="21" cy="21" fill="transparent" stroke="${stroke}"
-        stroke-width="8" stroke-dasharray="${dash}" stroke-dashoffset="${offset}"></circle>`;
-      offset -= percentage;
-      return slice;
-    })
-    .join('');
+      const totals = monthlyExpenses.reduce(function (acc, item) {
+        const key = item.category || "Misc";
+        acc[key] = (acc[key] || 0) + (Number(item.amount) || 0);
+        return acc;
+      }, {});
 
-  const legend = entries
-    .map(
-      ([label, value], index) => `
-      <div class="erm-chart-legend__item">
-        <span><span class="dot" style="background:${colors[index % colors.length]}"></span>${label}</span>
-        <span>${formatCurrency(value)}</span>
-      </div>`
-    )
-    .join('');
+      const entries = Object.entries(totals);
+      if (!entries.length) {
+        container.innerHTML = '<div class="erm-empty">No category data for this month.</div>';
+        return;
+      }
 
-  container.innerHTML = `
-    <svg viewBox="0 0 42 42" class="erm-chart" aria-label="Expense categories pie chart">
-      <circle r="15.915" cx="21" cy="21" fill="transparent" stroke="#E2E8F0" stroke-width="8"></circle>
-      ${slices}
-    </svg>
-    <div class="erm-chart-legend">${legend}</div>
-  `;
-};
+      const grandTotal = entries.reduce(function (sum, pair) {
+        return sum + pair[1];
+      }, 0);
+      const colors = ["#2563eb", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444"];
+      let offset = 25;
 
-const renderDateChart = (totals) => {
-  const container = document.getElementById('erm-date-chart');
-  if (!container) return;
-  const entries = Object.entries(totals).sort((a, b) => a[0].localeCompare(b[0]));
-  if (!entries.length) {
-    container.innerHTML = '<div class="erm-empty">No date data yet.</div>';
-    return;
+      const slices = entries
+        .map(function (pair, index) {
+          const value = pair[1];
+          const percentage = (value / grandTotal) * 100;
+          const dash = percentage + " " + (100 - percentage);
+          const color = colors[index % colors.length];
+          const piece = `<circle r="15.915" cx="21" cy="21" fill="transparent" stroke="${color}" stroke-width="8" stroke-dasharray="${dash}" stroke-dashoffset="${offset}"></circle>`;
+          offset -= percentage;
+          return piece;
+        })
+        .join("");
+
+      const legend = entries
+        .map(function (pair, index) {
+          const key = pair[0];
+          const value = pair[1];
+          const color = colors[index % colors.length];
+          return `<div style="display:flex;justify-content:space-between;gap:10px;font-size:.82rem;"><span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${color};margin-right:6px;"></span>${key}</span><strong>${formatCurrency(value)}</strong></div>`;
+        })
+        .join("");
+
+      container.innerHTML = `
+        <svg viewBox="0 0 42 42" style="max-width:220px;margin:0 auto 8px;display:block;">
+          <circle r="15.915" cx="21" cy="21" fill="transparent" stroke="#e2e8f0" stroke-width="8"></circle>
+          ${slices}
+        </svg>
+        <div style="display:grid;gap:6px;">${legend}</div>
+      `;
+    } catch (error) {
+      console.error("[ERM] Error in renderERMCategoryChart:", error);
+    }
   }
 
   const maxValue = Math.max(...entries.map(([, value]) => value));
@@ -627,10 +640,31 @@ export const renderExpenseRecordPage = () => {
     console.warn('[ERM] Expense record access denied.');
     return;
   }
-  const container = document.getElementById('expense-record-page');
-  if (!container) {
-    console.warn('[ERM] Expense record container not found.');
-    return;
+
+  function renderExpenseRecordPage() {
+    console.log("[ERM] renderExpenseRecordPage() called");
+    try {
+      const container = getERMContainer();
+      if (!container) {
+        console.error("[ERM] Cannot render ERM: #expense-record-page not found");
+        return;
+      }
+
+      container.classList.remove("hidden");
+
+      if (!ERM_STATE.initialized) {
+        buildERMLayout();
+        setupERMForm();
+        setupReceiptModal();
+        ERM_STATE.initialized = true;
+      }
+
+      startERMRealtime();
+      renderERMTable();
+      renderERMSummary();
+    } catch (error) {
+      console.error("[ERM] Error in renderExpenseRecordPage:", error);
+    }
   }
 };
 
