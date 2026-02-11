@@ -2002,6 +2002,253 @@
             }
         }
 
+        .erm-page {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .erm-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+        }
+
+        .erm-card {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+            padding: 20px;
+            transition: var(--transition);
+        }
+
+        .erm-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .erm-card__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .erm-card__header h3 {
+            font-size: 1.1rem;
+        }
+
+        .erm-form {
+            display: grid;
+            gap: 14px;
+        }
+
+        .erm-form__row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+        }
+
+        .erm-form label {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .erm-form input,
+        .erm-form select,
+        .erm-form textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #E2E8F0;
+            border-radius: 10px;
+            background: #F8FAFC;
+            transition: var(--transition);
+        }
+
+        .erm-form input:focus,
+        .erm-form select:focus,
+        .erm-form textarea:focus {
+            border-color: #93C5FD;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+            outline: none;
+        }
+
+        .erm-badge {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(37, 99, 235, 0.12);
+            color: #1D4ED8;
+            font-weight: 600;
+        }
+
+        .erm-submit-btn {
+            background: #2563EB;
+            color: white;
+            border: none;
+            border-radius: 999px;
+            padding: 12px 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .erm-submit-btn:hover {
+            box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.15);
+        }
+
+        .erm-banner {
+            margin-top: 12px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            display: none;
+        }
+
+        .erm-banner.is-visible {
+            display: block;
+        }
+
+        .erm-banner.is-error {
+            background: rgba(239, 68, 68, 0.12);
+            color: #B91C1C;
+        }
+
+        .erm-banner.is-success {
+            background: rgba(16, 185, 129, 0.12);
+            color: #047857;
+        }
+
+        .erm-upload-status {
+            margin-top: 8px;
+            font-size: 0.8rem;
+            color: #475569;
+            display: none;
+        }
+
+        .erm-upload-status.is-visible {
+            display: block;
+        }
+
+        .erm-record {
+            border: 1px solid #E2E8F0;
+            border-radius: 14px;
+            padding: 16px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .erm-record__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .erm-record__toggle {
+            border: none;
+            background: none;
+            font-weight: 600;
+            color: #2563EB;
+            cursor: pointer;
+        }
+
+        .erm-record__details {
+            display: none;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #0F172A;
+        }
+
+        .erm-record.is-open .erm-record__details {
+            display: grid;
+        }
+
+        .erm-empty {
+            padding: 14px;
+            border-radius: 10px;
+            background: #F1F5F9;
+            color: #64748B;
+            text-align: center;
+        }
+
+        .erm-chart {
+            width: 100%;
+            height: auto;
+            display: block;
+            margin-bottom: 12px;
+        }
+
+        .erm-chart-legend {
+            display: grid;
+            gap: 8px;
+        }
+
+        .erm-chart-legend__item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.8rem;
+        }
+
+        .erm-chart-legend__item .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .erm-metrics {
+            display: grid;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        .erm-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: var(--transition);
+            z-index: 50;
+        }
+
+        .erm-modal.is-open {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .erm-modal__content {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            max-width: 640px;
+            width: 90%;
+            transform: scale(0.94);
+            transition: var(--transition);
+        }
+
+        .erm-modal.is-open .erm-modal__content {
+            transform: scale(1);
+        }
+
+        .erm-modal__content img {
+            width: 100%;
+            border-radius: 12px;
+            margin-top: 12px;
+        }
+
+        .erm-modal__close {
+            background: none;
+            border: none;
+            font-size: 1.4rem;
+            cursor: pointer;
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -2615,7 +2862,7 @@
                 <a href="#" class="menu-item" onclick="showSection('compliance-manager')">
                     <i class="fas fa-triangle-exclamation"></i> Compliance Risk Manager
                 </a>
-                <a href="#" class="menu-item" onclick="showSection('expense-record-page'); renderExpenseRecordPage();">
+                <a href="#" class="menu-item" data-nav="expense-records" onclick="showSection('expense-record-page'); renderExpenseRecordPage();">
                     <i class="fas fa-receipt"></i> Expense Records
                 </a>
                 <a href="#" class="menu-item" onclick="showSection('settings')">
@@ -4268,17 +4515,8 @@
         </div>
     </div>
 
-    <script>
-        console.log("[SCRIPT IMPORT] index.html loader executing");
-    </script>
-    <script
-        src="./backend/expenseRecordService.js"
-        onload="console.log('[SCRIPT IMPORT] backend/expenseRecordService.js loaded')"
-    ></script>
-    <script
-        src="./expenseRecordUI.js"
-        onload="console.log('[SCRIPT IMPORT] expenseRecordUI.js loaded')"
-    ></script>
+    <script type="module" src="./backend/expenseRecordService.js"></script>
+    <script type="module" src="./expenseRecordUI.js"></script>
     <script src="payrollAnomalyDetector.js"></script>
     <script>
         const EMPLOYEE_STORAGE_KEY = 'employees';
@@ -4984,9 +5222,7 @@
         window.canManageExpenses = canManageExpenses;
 
         function updateExpenseNavVisibility() {
-            const expenseMenu = document.querySelector(
-                '.sidebar-menu .menu-item[onclick="showSection(\'expense-record-page\'); renderExpenseRecordPage();"]'
-            );
+            const expenseMenu = document.querySelector('[data-nav=\"expense-records\"]');
             if (!expenseMenu) return;
             expenseMenu.style.display = canManageExpenses() ? '' : 'none';
         }
@@ -5014,9 +5250,7 @@
             // Find and activate the corresponding menu item
             let menuItem = document.querySelector(`.sidebar-menu .menu-item[onclick="showSection('${sectionId}')"]`);
             if (!menuItem && sectionId === 'expense-record-page') {
-                menuItem = document.querySelector(
-                    '.sidebar-menu .menu-item[onclick="showSection(\'expense-record-page\'); renderExpenseRecordPage();"]'
-                );
+                menuItem = document.querySelector('.sidebar-menu .menu-item[data-nav="expense-records"]');
             }
             if (menuItem) {
                 menuItem.classList.add('active');
