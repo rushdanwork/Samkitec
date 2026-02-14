@@ -153,11 +153,11 @@ const writeLegacySummary = async ({ db, employeeId, summary, allViolations }) =>
   ]);
 };
 
-function resolveRunId() {
-  // Use explicit runId passed by payroll processing
+function resolveRunId(runIdArg = null) {
+  if (runIdArg) return runIdArg;
+
   if (window.__latestRunId) return window.__latestRunId;
 
-  // Fallback: use local payrollRuns array
   const payrollRuns = JSON.parse(localStorage.getItem('payrollRuns')) || [];
   if (payrollRuns.length === 0) return null;
 
@@ -180,7 +180,8 @@ const runComplianceScan = async (runIdMaybe = 'manual') => {
   try {
     const requestedRunId =
       runIdMaybe && !['manual', 'auto', 'payrollCompletedEvent'].includes(runIdMaybe) ? runIdMaybe : null;
-    const runId = requestedRunId || resolveRunId();
+    const runId = resolveRunId(requestedRunId);
+    console.log('[ComplianceEngine] Using payroll run:', runId);
     if (!runId) {
       console.warn('[ComplianceEngine] No payroll run available to scan.');
       return null;
