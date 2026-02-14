@@ -153,19 +153,17 @@ const writeLegacySummary = async ({ db, employeeId, summary, allViolations }) =>
   ]);
 };
 
-const resolveRunId = async (db, runIdMaybe) => {
-  const { collection, doc, getDoc, getDocs, orderBy, query, limit } = window.firestoreFunctions;
-  if (runIdMaybe && !['manual', 'auto', 'payrollCompletedEvent'].includes(runIdMaybe)) {
-    const runSnap = await getDoc(doc(db, COLLECTIONS.payroll, runIdMaybe));
-    if (runSnap.exists()) return runIdMaybe;
-  }
+function resolveRunId() {
+  // Use explicit runId passed by payroll processing
+  if (window.__latestRunId) return window.__latestRunId;
 
-  const latestRunSnapshot = await getDocs(
-    query(collection(db, COLLECTIONS.payroll), orderBy('generatedAt', 'desc'), limit(1))
-  );
-  const latest = latestRunSnapshot.docs[0];
-  return latest?.id || null;
-};
+  // Fallback: use local payrollRuns array
+  const payrollRuns = JSON.parse(localStorage.getItem('payrollRuns')) || [];
+  if (payrollRuns.length === 0) return null;
+
+  const latest = payrollRuns[payrollRuns.length - 1];
+  return latest.id || latest.runId;
+}
 
 const runComplianceScan = async (runIdMaybe = 'manual') => {
   if (!ensureFirebaseReady()) return null;
@@ -180,7 +178,9 @@ const runComplianceScan = async (runIdMaybe = 'manual') => {
   scanState.inProgress = true;
 
   try {
-    const runId = await resolveRunId(db, runIdMaybe);
+    const requestedRunId =
+      runIdMaybe && !['manual', 'auto', 'payrollCompletedEvent'].includes(runIdMaybe) ? runIdMaybe : null;
+    const runId = requestedRunId || resolveRunId();
     if (!runId) {
       console.warn('[ComplianceEngine] No payroll run available to scan.');
       return null;

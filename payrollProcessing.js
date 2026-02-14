@@ -27,6 +27,7 @@ export const savePayroll = async ({ month, year, payrollData }) => {
   const payrollRunId = await savePayrollRun(payload);
 
   if (typeof window !== 'undefined') {
+    window.__latestRunId = payrollRunId;
     window.dispatchEvent(
       new CustomEvent('payrollRunCompleted', {
         detail: {
