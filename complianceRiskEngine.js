@@ -1,100 +1,43 @@
-import runComplianceEngine, { normalizeInputData } from './backend/complianceEngine.js';
+import {
+  calculateRiskScore,
+  getRiskLevel,
+  normalizeInputData,
+} from './backend/complianceEngine.js';
+import runPfRules from './backend/complianceRules/pfRules.js';
+import runEsiRules from './backend/complianceRules/esiRules.js';
+import runPtRules from './backend/complianceRules/ptRules.js';
+import runTdsRules from './backend/complianceRules/tdsRules.js';
+import runWageRules from './backend/complianceRules/wageRules.js';
+import runAttendanceFraudRules from './backend/complianceRules/attendanceFraudRules.js';
+import runOvertimeRules from './backend/complianceRules/overtimeRules.js';
+import runSalaryAnomalyRules from './backend/complianceRules/salaryAnomalyRules.js';
 
 const COLLECTIONS = {
   employees: 'employees',
   attendance: 'attendanceRecords',
   payroll: 'payrollRecords',
   stateRules: 'stateRules',
-  complianceViolations: 'complianceViolations',
+  complianceResults: 'complianceResults',
+  complianceViolationsLegacy: 'complianceViolations',
 };
 
-const engineState = {
-  employees: [],
-  attendanceRecords: {},
-  payrollRuns: [],
-  stateRules: {},
+const scanState = {
+  inProgress: false,
+  pendingRunId: null,
 };
-
-let runTimeout;
-let subscriptions = [];
-let scanInProgress = false;
-let pendingReason = null;
-
-const safeSerialize = (value) => {
-  if (typeof value?.toDate === 'function') return value.toDate().toISOString();
-  if (value instanceof Set) return Array.from(value);
-  if (Array.isArray(value)) return value.map((item) => safeSerialize(item));
-  if (value && typeof value === 'object') {
-    return Object.entries(value).reduce((acc, [key, item]) => {
-      acc[key] = safeSerialize(item);
-      return acc;
-    }, {});
-  }
-  return value;
-};
-
-const summarizeForLogs = (normalizedData, employeeId) => {
-  const payrollHistory = normalizedData.payrollByEmployee.get(employeeId) || [];
-  const attendanceSummary = normalizedData.attendanceByEmployee.get(employeeId) || {
-    totalDays: 0,
-    presentDays: 0,
-    overtimeHours: 0,
-    daily: [],
-  };
-  return {
-    payrollHistoryCount: payrollHistory.length,
-    payrollCurrentRecord: payrollHistory[payrollHistory.length - 1] || {},
-    attendance: {
-      totalDays: attendanceSummary.totalDays || 0,
-      presentDays: attendanceSummary.presentDays || 0,
-      overtimeHours: attendanceSummary.overtimeHours || 0,
-      devices: Array.from(attendanceSummary.devices || []),
-      ipAddresses: Array.from(attendanceSummary.ipAddresses || []),
-      daily: attendanceSummary.daily || [],
-    },
-  };
-};
-
-const violationMessagesByType = {
-  'PF Eligibility': 'PF-eligible employee is not marked as PF enabled.',
-  'PF Wage Mismatch': 'PF wage should match Basic + DA.',
-  'EPF Contribution Mismatch': 'Employee EPF contribution does not match 12% of PF wage.',
-  'EPS Cap Violation': 'EPS contribution exceeds the statutory cap.',
-  'Employer PF Split Mismatch': 'Employer EPF + EPS total does not equal 12% of PF wage.',
-  'ESI Eligibility': 'ESI-eligible employee is not flagged for ESI coverage.',
-  'ESI Contribution Mismatch': 'Employee ESI contribution does not match 0.75% of gross wages.',
-  'ESI Employer Contribution Mismatch': 'Employer ESI contribution does not match 3.25% of gross wages.',
-  'PT Missing': 'PT deduction missing for applicable slab.',
-  'PT Slab Mismatch': 'PT deduction does not match configured slab.',
-  'PT Deducted Twice': 'PT deduction appears to be applied more than once.',
-  'PT Deduction Invalid State': 'PT deducted where no state slab is configured.',
-  'TDS PAN Rule': 'PAN missing and TDS rate is below 20%.',
-  'TDS Regime Mismatch': 'Payroll tax regime does not match employee declaration.',
-  'TDS Tax Mismatch': 'Actual TDS deduction differs from expected calculation.',
-  'TDS Declaration/Proof Mismatch': 'Declared deductions exceed proofs submitted.',
-  'Minimum Wage Violation': 'Basic pay is below minimum wage for role.',
-  'Attendance Device Cloning': 'Multiple device IDs detected for one employee.',
-  'Attendance Timestamp Reuse': 'Identical timestamps repeated across attendance records.',
-  'Impossible Travel': 'Check-ins show impossible travel between distant locations.',
-  'Sudden Perfect Attendance': 'Perfect attendance detected after inconsistent history.',
-  'Daily Overtime Limit': 'Overtime exceeds 2 hours on one or more days.',
-  'Monthly Overtime Limit': 'Monthly overtime exceeds configured limit.',
-  'Salary Spike': 'Gross salary increased by more than 40% vs recent average.',
-  'Deduction Drop Anomaly': 'Deductions dropped sharply compared to recent periods.',
-};
-
-const normalizeViolation = (violation = {}) => ({
-  type: violation.type || 'Unknown Rule',
-  severity: violation.severity || 'Low',
-  message: violation.message || violationMessagesByType[violation.type] || 'Compliance rule triggered.',
-  recommendedFix: violation.recommendedFix || 'Review and apply the relevant compliance remediation.',
-  ruleCode: violation.ruleCode || violation.type || 'UNKNOWN_RULE',
-  triggeredAt: new Date().toISOString(),
-});
 
 const ensureFirebaseReady = () => Boolean(window.firebaseDb && window.firestoreFunctions);
+const toLowerSeverity = (value = 'Low') => String(value).trim().toLowerCase();
 
-const parseAttendanceSnapshot = (snapshot) => {
+const fetchCollectionAsArray = async (db, collectionName) => {
+  const { collection, getDocs } = window.firestoreFunctions;
+  const snapshot = await getDocs(collection(db, collectionName));
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+};
+
+const fetchAttendanceAsObject = async (db) => {
+  const { collection, getDocs } = window.firestoreFunctions;
+  const snapshot = await getDocs(collection(db, COLLECTIONS.attendance));
   const records = {};
   snapshot.forEach((docSnap) => {
     records[docSnap.id] = docSnap.data();
@@ -102,264 +45,302 @@ const parseAttendanceSnapshot = (snapshot) => {
   return records;
 };
 
-const parsePayrollSnapshot = (snapshot) =>
-  snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-
-const parseStateRulesSnapshot = (snapshot) => {
-  const rules = {};
+const fetchStateRulesAsObject = async (db) => {
+  const { collection, getDocs } = window.firestoreFunctions;
+  const snapshot = await getDocs(collection(db, COLLECTIONS.stateRules));
+  const stateRules = {};
   snapshot.forEach((docSnap) => {
-    rules[docSnap.id] = docSnap.data();
+    stateRules[docSnap.id] = docSnap.data();
   });
-  return rules;
+  return stateRules;
 };
 
-const scheduleComplianceRun = (reason = 'auto') => {
-  if (!ensureFirebaseReady()) return;
-  if (runTimeout) window.clearTimeout(runTimeout);
-  runTimeout = window.setTimeout(() => runComplianceScan(reason), 800);
+const mapRuleResult = (violations = []) => {
+  const normalizedViolations = Array.isArray(violations) ? violations : [];
+  const passed = normalizedViolations.length === 0;
+  const highest = normalizedViolations.reduce((acc, violation) => {
+    const severity = toLowerSeverity(violation.severity);
+    if (severity === 'high') return 'high';
+    if (severity === 'medium' && acc !== 'high') return 'medium';
+    return acc;
+  }, 'low');
+
+  return {
+    passed,
+    severity: passed ? 'low' : highest,
+    reason: passed
+      ? 'Rule passed without violations.'
+      : normalizedViolations.map((violation) => violation.message || violation.type || 'Rule triggered').join(' | '),
+    expected: passed ? 'No violations expected.' : normalizedViolations.map((violation) => violation.type),
+    actual: passed ? [] : normalizedViolations,
+  };
 };
 
-const runComplianceScan = async (reason = 'manual') => {
-  if (!ensureFirebaseReady()) return null;
-  if (scanInProgress) {
-    pendingReason = reason;
-    return null;
-  }
-  const { setDoc, doc, serverTimestamp } = window.firestoreFunctions;
-  const db = window.firebaseDb;
+const buildEmployeeRuleResults = ({ employee, payrollRecord, payrollHistory, attendanceSummary, stateRules }) => {
+  const pfViolations = runPfRules({ employee, payrollRecord });
+  const esiViolations = runEsiRules({ employee, payrollRecord });
+  const tdsViolations = runTdsRules({ employee, payrollRecord });
+  const ptViolations = runPtRules({ employee, payrollRecord, stateRules });
+  const minWageViolations = runWageRules({ employee, stateRules });
+  const attendanceViolations = [
+    ...runAttendanceFraudRules({ attendanceSummary }),
+    ...runOvertimeRules({ attendanceSummary }),
+  ];
+  const salaryAnomalyViolations = runSalaryAnomalyRules({ payrollHistory, payrollRecord, employee });
 
-  scanInProgress = true;
+  const allViolations = [
+    ...pfViolations,
+    ...esiViolations,
+    ...tdsViolations,
+    ...ptViolations,
+    ...minWageViolations,
+    ...attendanceViolations,
+    ...salaryAnomalyViolations,
+  ];
+
+  return {
+    allViolations,
+    rules: {
+      pf: mapRuleResult(pfViolations),
+      esi: mapRuleResult(esiViolations),
+      tds: mapRuleResult(tdsViolations),
+      pt: mapRuleResult(ptViolations),
+      minWage: mapRuleResult(minWageViolations),
+      attendance: mapRuleResult(attendanceViolations),
+      salaryAnomaly: mapRuleResult(salaryAnomalyViolations),
+    },
+  };
+};
+
+const writeEmployeeComplianceResult = async ({ db, runId, employeeId, summary, rules }) => {
+  const { doc, setDoc, serverTimestamp } = window.firestoreFunctions;
+  const summaryRef = doc(db, COLLECTIONS.complianceResults, runId, employeeId, 'summary');
+  const rulesRef = doc(db, COLLECTIONS.complianceResults, runId, employeeId, 'rules');
 
   try {
-    console.info('[ComplianceEngine] Scan started.', {
-      reason,
-      employees: engineState.employees.length,
-      attendanceDays: Object.keys(engineState.attendanceRecords || {}).length,
-      payrollRuns: engineState.payrollRuns.length,
-      stateRuleSets: Object.keys(engineState.stateRules || {}).length,
-    });
+    await Promise.all([
+      setDoc(summaryRef, { ...summary, firestoreTimestamp: serverTimestamp() }, { merge: true }),
+      setDoc(rulesRef, { ...rules, updatedAt: serverTimestamp() }, { merge: true }),
+    ]);
+  } catch (error) {
+    console.error('[ComplianceEngine] Firestore write failed.', { runId, employeeId, error });
+    throw error;
+  }
+};
 
-    const normalizedData = normalizeInputData(
-      engineState.employees,
-      engineState.attendanceRecords,
-      engineState.payrollRuns,
-      engineState.stateRules
-    );
+const writeLegacySummary = async ({ db, employeeId, summary, allViolations }) => {
+  const { doc, setDoc, serverTimestamp } = window.firestoreFunctions;
+  const summaryRef = doc(db, COLLECTIONS.complianceViolationsLegacy, employeeId);
+  const violationsRef = doc(db, COLLECTIONS.complianceViolationsLegacy, employeeId, 'violations', 'list');
 
-    const engineResult = runComplianceEngine(
-      engineState.employees,
-      engineState.attendanceRecords,
-      engineState.payrollRuns,
-      engineState.stateRules
-    );
-
-    const saveTasks = engineResult.results.map((report) => {
-      const normalizedViolations = (Array.isArray(report.violations) ? report.violations : []).map((violation) =>
-        normalizeViolation(violation)
-      );
-      const debugPayload = summarizeForLogs(normalizedData, report.employeeId);
-
-      console.debug('[ComplianceEngine] Evaluating employee for compliance.', {
-        employeeId: report.employeeId,
-        employeeName: report.employeeName,
-        riskScore: report.riskScore,
-        riskLevel: report.riskLevel,
-        rawData: safeSerialize(debugPayload),
-      });
-
-      normalizedViolations.forEach((violation) => {
-        console.info('[ComplianceEngine] Rule triggered.', {
-          employeeId: report.employeeId,
-          employeeName: report.employeeName,
-          rule: violation.type,
-          severity: violation.severity,
-          reason: violation.message,
-        });
-      });
-
-      const summaryObject = {
+  await Promise.all([
+    setDoc(
+      summaryRef,
+      {
         summary: {
-          employeeId: report.employeeId,
-          employeeName: report.employeeName,
-          riskScore: report.riskScore,
-          riskLevel: report.riskLevel,
+          employeeId,
+          riskScore: summary.riskScore,
+          riskLevel: summary.severity,
           lastEvaluated: serverTimestamp(),
-          lastEvaluatedIso: new Date().toISOString(),
-          violationCount: normalizedViolations.length,
+          lastEvaluatedIso: summary.timestamp,
+          violationCount: summary.violationCount,
         },
-        topViolations: normalizedViolations.slice(0, 8),
-      };
-      const summaryRef = doc(db, COLLECTIONS.complianceViolations, report.employeeId);
-      const violationsRef = doc(db, COLLECTIONS.complianceViolations, report.employeeId, 'violations', 'list');
+        topViolations: allViolations.slice(0, 8),
+      },
+      { merge: true }
+    ),
+    setDoc(violationsRef, { list: allViolations, updatedAt: serverTimestamp() }, { merge: true }),
+  ]);
+};
 
-      return Promise.allSettled([
-        setDoc(summaryRef, summaryObject, { merge: true }),
-        setDoc(violationsRef, { list: normalizedViolations, updatedAt: serverTimestamp(), updatedAtIso: new Date().toISOString() }),
-      ]).then((results) => {
-        results.forEach((result, index) => {
-          if (result.status === 'rejected') {
-            const target = index === 0 ? 'summary' : 'violations';
-            console.error('[ComplianceEngine] Firestore write failed.', {
-              employeeId: report.employeeId,
-              target,
-              error: result.reason,
-            });
-          }
+const resolveRunId = async (db, runIdMaybe) => {
+  const { collection, doc, getDoc, getDocs, orderBy, query, limit } = window.firestoreFunctions;
+  if (runIdMaybe && !['manual', 'auto', 'payrollCompletedEvent'].includes(runIdMaybe)) {
+    const runSnap = await getDoc(doc(db, COLLECTIONS.payroll, runIdMaybe));
+    if (runSnap.exists()) return runIdMaybe;
+  }
+
+  const latestRunSnapshot = await getDocs(
+    query(collection(db, COLLECTIONS.payroll), orderBy('generatedAt', 'desc'), limit(1))
+  );
+  const latest = latestRunSnapshot.docs[0];
+  return latest?.id || null;
+};
+
+const runComplianceScan = async (runIdMaybe = 'manual') => {
+  if (!ensureFirebaseReady()) return null;
+  if (scanState.inProgress) {
+    scanState.pendingRunId = runIdMaybe;
+    return null;
+  }
+
+  const db = window.firebaseDb;
+  const { doc, getDoc, setDoc, serverTimestamp } = window.firestoreFunctions;
+
+  scanState.inProgress = true;
+
+  try {
+    const runId = await resolveRunId(db, runIdMaybe);
+    if (!runId) {
+      console.warn('[ComplianceEngine] No payroll run available to scan.');
+      return null;
+    }
+
+    console.info('[ComplianceEngine] Scan started.', { runId });
+
+    const [runSnap, employees, attendanceRecords, payrollRuns, stateRules] = await Promise.all([
+      getDoc(doc(db, COLLECTIONS.payroll, runId)),
+      fetchCollectionAsArray(db, COLLECTIONS.employees),
+      fetchAttendanceAsObject(db),
+      fetchCollectionAsArray(db, COLLECTIONS.payroll),
+      fetchStateRulesAsObject(db),
+    ]);
+
+    if (!runSnap.exists()) {
+      console.warn('[ComplianceEngine] Payroll run not found.', { runId });
+      return null;
+    }
+
+    const normalizedData = normalizeInputData(employees, attendanceRecords, payrollRuns, stateRules);
+
+    const results = normalizedData.employees
+      .map((employee) => {
+        if (!employee.employeeId) return null;
+        const payrollHistory = normalizedData.payrollByEmployee.get(employee.employeeId) || [];
+        const payrollRecord = payrollHistory[payrollHistory.length - 1] || {};
+        const attendanceSummary = normalizedData.attendanceByEmployee.get(employee.employeeId) || {};
+
+        const { allViolations, rules } = buildEmployeeRuleResults({
+          employee,
+          payrollRecord,
+          payrollHistory,
+          attendanceSummary,
+          stateRules: normalizedData.stateRules,
         });
+
+        const riskScore = calculateRiskScore(allViolations);
+        const severity = toLowerSeverity(getRiskLevel(riskScore));
+        const summary = {
+          riskScore,
+          severity,
+          violationCount: allViolations.length,
+          timestamp: new Date().toISOString(),
+          employeeId: employee.employeeId,
+          employeeName: employee.name ?? employee.employeeName ?? 'Unknown',
+        };
+
+        return {
+          employeeId: employee.employeeId,
+          summary,
+          rules,
+          allViolations,
+        };
+      })
+      .filter(Boolean);
+
+    const writeTasks = results.map(async (result) => {
+      console.info('[ComplianceEngine] Per-employee rule results.', {
+        runId,
+        employeeId: result.employeeId,
+        summary: result.summary,
+        rules: result.rules,
+      });
+
+      await writeEmployeeComplianceResult({
+        db,
+        runId,
+        employeeId: result.employeeId,
+        summary: result.summary,
+        rules: result.rules,
+      });
+
+      await writeLegacySummary({
+        db,
+        employeeId: result.employeeId,
+        summary: result.summary,
+        allViolations: result.allViolations,
       });
     });
 
-    await Promise.all(saveTasks);
+    await Promise.all(writeTasks);
+
+    await setDoc(
+      doc(db, COLLECTIONS.complianceResults, runId, '_meta', 'scanInfo'),
+      {
+        runId,
+        employeeIds: results.map((item) => item.employeeId),
+        completedAt: new Date().toISOString(),
+        completedAtTs: serverTimestamp(),
+      },
+      { merge: true }
+    );
 
     window.dispatchEvent(
       new CustomEvent('complianceScanCompleted', {
-        detail: { reason, generatedAt: engineResult.generatedAt },
+        detail: { runId, employeesEvaluated: results.length },
       })
     );
 
-    console.info('[ComplianceEngine] Scan completed.', {
-      reason,
-      generatedAt: engineResult.generatedAt,
-      employeesEvaluated: engineResult.results.length,
-    });
+    console.info('[ComplianceEngine] Scan completed.', { runId, employeesEvaluated: results.length });
 
-    return engineResult;
+    return {
+      runId,
+      generatedAt: new Date().toISOString(),
+      results,
+    };
   } catch (error) {
     console.error('[ComplianceEngine] Failed to run compliance scan:', error);
     return null;
   } finally {
-    scanInProgress = false;
-    if (pendingReason) {
-      const nextReason = pendingReason;
-      pendingReason = null;
-      scheduleComplianceRun(nextReason);
+    scanState.inProgress = false;
+    if (scanState.pendingRunId) {
+      const nextRunId = scanState.pendingRunId;
+      scanState.pendingRunId = null;
+      window.setTimeout(() => {
+        runComplianceScan(nextRunId);
+      }, 400);
     }
   }
 };
 
-const attachRealtimeListeners = () => {
-  if (!ensureFirebaseReady()) return;
 
-  const { collection, onSnapshot } = window.firestoreFunctions;
-  const db = window.firebaseDb;
-
-  subscriptions.forEach((unsubscribe) => unsubscribe());
-  subscriptions = [];
-
-  subscriptions.push(
-    onSnapshot(collection(db, COLLECTIONS.employees), (snapshot) => {
-      engineState.employees = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        employeeId: docSnap.id,
-        ...docSnap.data(),
-      }));
-      scheduleComplianceRun('employees');
-    })
-  );
-
-  subscriptions.push(
-    onSnapshot(collection(db, COLLECTIONS.attendance), (snapshot) => {
-      engineState.attendanceRecords = parseAttendanceSnapshot(snapshot);
-      scheduleComplianceRun('attendance');
-    })
-  );
-
-  subscriptions.push(
-    onSnapshot(collection(db, COLLECTIONS.payroll), (snapshot) => {
-      engineState.payrollRuns = parsePayrollSnapshot(snapshot);
-      scheduleComplianceRun('payroll');
-    })
-  );
-
-  subscriptions.push(
-    onSnapshot(collection(db, COLLECTIONS.stateRules), (snapshot) => {
-      engineState.stateRules = parseStateRulesSnapshot(snapshot);
-      scheduleComplianceRun('stateRules');
-    })
-  );
-
-  const payrollCompletionHandler = () => {
-    scheduleComplianceRun('payrollCompletedEvent');
-  };
-  window.addEventListener('payrollRunCompleted', payrollCompletionHandler);
-  subscriptions.push(() => window.removeEventListener('payrollRunCompleted', payrollCompletionHandler));
-};
-
-const evaluateTestExpectation = (resultByEmployeeId, expectation = {}) => {
-  const employeeResult = resultByEmployeeId.get(expectation.employeeId);
-  if (!employeeResult) {
-    return {
-      employeeId: expectation.employeeId,
-      status: 'missing_employee',
-      message: 'Employee result missing from compliance output.',
-    };
+const runComplianceScanTest = async ({ runId, expectedByEmployee = [] } = {}) => {
+  const result = await runComplianceScan(runId || 'manual');
+  if (!result) {
+    return { passed: false, runId: runId || null, mismatches: expectedByEmployee, message: 'Scan failed.' };
   }
 
-  const actualTypes = new Set((employeeResult.violations || []).map((violation) => violation.type));
-  const expectedTypes = new Set(expectation.expectedViolationTypes || []);
+  const byEmployee = new Map(result.results.map((item) => [item.employeeId, item]));
+  const mismatches = [];
 
-  const missingViolations = [...expectedTypes].filter((type) => !actualTypes.has(type));
-  const unexpectedViolations = [...actualTypes].filter((type) => !expectedTypes.has(type));
-  const passed = missingViolations.length === 0 && unexpectedViolations.length === 0;
+  expectedByEmployee.forEach((expectation) => {
+    const current = byEmployee.get(expectation.employeeId);
+    if (!current) {
+      mismatches.push({ employeeId: expectation.employeeId, reason: 'missing_employee' });
+      return;
+    }
+    if (Number.isFinite(expectation.maxRiskScore) && current.summary.riskScore > expectation.maxRiskScore) {
+      mismatches.push({
+        employeeId: expectation.employeeId,
+        reason: 'risk_score_exceeded',
+        expected: expectation.maxRiskScore,
+        actual: current.summary.riskScore,
+      });
+    }
+  });
 
   return {
-    employeeId: expectation.employeeId,
-    passed,
-    missingViolations,
-    unexpectedViolations,
-    expectedTypes: [...expectedTypes],
-    actualTypes: [...actualTypes],
-  };
-};
-
-const runComplianceScanTest = async ({
-  payrollRunId,
-  expectedByEmployee = [],
-  reason = 'testHarness',
-} = {}) => {
-  const result = await runComplianceScan(reason);
-  if (!result) {
-    return {
-      passed: false,
-      payrollRunId,
-      reason,
-      message: 'Compliance scan failed to execute.',
-      mismatches: expectedByEmployee,
-    };
-  }
-
-  const resultByEmployeeId = new Map(result.results.map((item) => [item.employeeId, item]));
-  const evaluations = expectedByEmployee.map((expectation) =>
-    evaluateTestExpectation(resultByEmployeeId, expectation)
-  );
-  const mismatches = evaluations.filter((evaluation) => !evaluation.passed);
-
-  const summary = {
     passed: mismatches.length === 0,
-    payrollRunId,
-    reason,
+    runId: result.runId,
     generatedAt: result.generatedAt,
-    checks: evaluations.length,
     mismatches,
   };
-  if (!summary.passed) {
-    console.warn('[ComplianceEngine][Test] Mismatches detected.', summary);
-  } else {
-    console.info('[ComplianceEngine][Test] All compliance expectations passed.', summary);
-  }
-  return summary;
 };
 
-const initComplianceEngine = () => {
-  if (!ensureFirebaseReady()) {
-    window.setTimeout(initComplianceEngine, 1000);
-    return;
-  }
-  attachRealtimeListeners();
-};
+window.runComplianceScanTest = runComplianceScanTest;
 
 window.runComplianceScan = runComplianceScan;
-window.runComplianceScanTest = runComplianceScanTest;
-window.addEventListener('DOMContentLoaded', () => {
-  initComplianceEngine();
+window.addEventListener('payrollRunCompleted', (event) => {
+  const runId = event?.detail?.runId || event?.detail?.payrollRunId;
+  if (runId) runComplianceScan(runId);
 });

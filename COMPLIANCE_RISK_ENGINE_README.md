@@ -1,118 +1,116 @@
-# Compliance Risk Engine Audit & Validation Guide
+# Payroll-Run Linked Compliance Engine (Option B)
 
-## Scan Triggers
+## What changed
 
-Compliance scans are triggered in three ways:
+The compliance engine is now **run-linked** and produces **rule-by-rule output for every employee for a specific payroll run**.
 
-1. **Realtime data triggers** from Firestore listeners in `complianceRiskEngine.js`:
-   - `employees`
-   - `attendanceRecords`
-   - `payrollRecords`
-   - `stateRules`
-2. **Manual trigger** via UI button (`Run Compliance Scan`) calling `window.runComplianceScan('manual')`.
-3. **Immediate post-payroll trigger** when payroll is saved in `payrollProcessing.js`:
-   - dispatches `payrollRunCompleted`
-   - invokes `window.runComplianceScan('payrollRunCompleted')`
+When payroll is saved:
+1. `payrollProcessing.savePayroll()` dispatches `payrollRunCompleted` with `runId`.
+2. It calls `window.runComplianceScan(runId)`.
+3. The engine fetches payroll/employees/attendance/state rules.
+4. It evaluates PF, ESI, TDS, PT, minimum wage, attendance, and salary anomaly.
+5. It writes employee summary + rules into Firestore under the run.
 
-## Active Rules and Alert Conditions
+---
 
-### PF Rules
-- PF Eligibility: basic + DA <= 15,000 and PF not enabled
-- PF Wage Mismatch: PF wage != basic + DA
-- EPF Contribution Mismatch: employee EPF != 12% PF wage
-- EPS Cap Violation: EPS exceeds cap logic
-- Employer PF Split Mismatch: employer EPF + EPS != 12% PF wage
+## Firestore structure
 
-### ESI Rules
-- ESI Eligibility: gross <= 21,000 but ESI not enabled
-- Employee ESI mismatch: != 0.75% gross
-- Employer ESI mismatch: != 3.25% gross
-- Missing challan details or delayed monthly deposit checks
+### New run-linked storage
 
-### PT Rules
-- Invalid state slab with deduction present
-- Missing PT where slab applies
-- Slab mismatch deduction
-- Duplicate PT deduction pattern
+- `complianceResults/{runId}/{employeeId}/summary`
+- `complianceResults/{runId}/{employeeId}/rules`
 
-### TDS Rules
-- PAN missing with TDS below 20%
-- Regime mismatch (employee vs payroll)
-- TDS expected vs actual mismatch
-- Declaration/proof mismatch
+Each `summary` doc contains:
+- `riskScore` (0-100)
+- `severity` (`low | medium | high`)
+- `violationCount`
+- `timestamp`
+- `employeeId`
+- `employeeName`
 
-### Payroll/Salary Anomaly Rules
-- Salary spike above 40% vs recent average
-- Deduction drop below 50% vs recent average
+Each `rules` doc contains:
+- `pf`
+- `esi`
+- `tds`
+- `pt`
+- `minWage`
+- `attendance`
+- `salaryAnomaly`
 
-### Attendance and Attendance-Gap Rules
-- Device cloning pattern (>=3 devices)
-- Timestamp reuse pattern
-- Impossible travel check-ins
-- Sudden perfect attendance pattern
-- Daily overtime > 2 hrs
-- Monthly overtime > 50 hrs
-
-## Firestore Dependencies
-
-### Reads
-- `employees`
-- `attendanceRecords`
-- `payrollRecords`
-- `stateRules`
-
-### Writes
-- `complianceViolations/{employeeId}`
-  - `summary.employeeId`
-  - `summary.employeeName`
-  - `summary.riskScore`
-  - `summary.riskLevel`
-  - `summary.lastEvaluated` (server timestamp)
-  - `summary.lastEvaluatedIso` (ISO timestamp string)
-  - `summary.violationCount`
-  - `topViolations` (max 8 entries)
-- `complianceViolations/{employeeId}/violations/list`
-  - `list` (normalized violations with `triggeredAt` ISO string)
-  - `updatedAt` (server timestamp)
-  - `updatedAtIso` (ISO timestamp string)
-
-## Validation and Test Harness
-
-Use `window.runComplianceScanTest()`:
-
-```js
-window.runComplianceScanTest({
-  payrollRunId: 'run-2026-01',
-  expectedByEmployee: [
-    { employeeId: 'EMP001', expectedViolationTypes: ['PF Eligibility', 'PT Missing'] },
-    { employeeId: 'EMP002', expectedViolationTypes: [] },
-  ],
-  reason: 'qa-regression'
-});
+Each rule object shape:
+```json
+{
+  "passed": true,
+  "severity": "low",
+  "reason": "Rule passed without violations.",
+  "expected": "No violations expected.",
+  "actual": []
+}
 ```
 
-The function:
-- runs a scan,
-- compares actual violation types to expectations,
-- reports mismatches (missing/extra rules),
-- logs pass/fail summary in console.
+### Scan metadata doc
 
-## Audit Findings Summary
+For UI listing support:
+- `complianceResults/{runId}/_meta/scanInfo`
+  - `employeeIds`
+  - `completedAt`
+  - `completedAtTs`
 
-- UI now reads real violation payloads from `topViolations` and fallback detail fetches.
-- Demo-like empty card behavior (due to missing `report.violations`) is removed.
-- Severity and message normalization prevents blank/hardcoded-placeholder output.
-- Scan lifecycle logging now includes start/end, per-employee raw data, and per-rule trigger logs.
-- Firestore writes now use `Promise.allSettled` with explicit per-target error logging.
-- Timestamps inside arrays are ISO strings; server timestamps remain top-level fields only.
+### Backward compatibility
 
-## Manual Run Instructions
+Legacy writes are still produced for existing pages/widgets:
+- `complianceViolations/{employeeId}`
+- `complianceViolations/{employeeId}/violations/list`
 
-1. Ensure Firebase is initialized and data is present.
-2. Trigger payroll save or click **Run Compliance Scan** in UI.
-3. Observe console logs for:
-   - scan start/end
-   - employee payload snapshots
-   - triggered rules
-4. Open the compliance modal to verify details are rendered from stored violations.
-5. Run `window.runComplianceScanTest(...)` for expectation-based validation.
+---
+
+## Trigger behavior
+
+### Automatic trigger after payroll save
+
+`payrollProcessing.js` now:
+- dispatches event with both `runId` and `payrollRunId`
+- invokes `window.runComplianceScan(payrollRunId)`
+
+### Manual trigger
+
+UI button still works and runs scan for the currently selected payroll run.
+
+---
+
+## UI usage
+
+In Compliance Risk Manager:
+1. Select a payroll run from the new **Payroll Run** dropdown.
+2. View summary chips (high/medium/low + avg score).
+3. Review employee list with severity + violation count.
+4. Click **Expand** to see detailed PF/ESI/TDS/PT/minWage/attendance/salaryAnomaly rule output.
+
+---
+
+## Logging
+
+The engine logs:
+- scan start / end
+- per-employee summary + rule payload
+- Firestore write failures with runId/employeeId context
+
+---
+
+## Browser console helpers
+
+```js
+// Scan latest run
+window.runComplianceScan('manual')
+
+// Scan a specific run
+window.runComplianceScan('YOUR_RUN_ID')
+
+// Lightweight test helper
+window.runComplianceScanTest({
+  runId: 'YOUR_RUN_ID',
+  expectedByEmployee: [
+    { employeeId: 'EMP001', maxRiskScore: 80 }
+  ]
+})
+```
