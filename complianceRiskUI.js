@@ -1,12 +1,7 @@
-(function(window) {
-    const SEVERITY_CLASS = {
-        Low: 'severity-low',
-        Medium: 'severity-medium',
-        High: 'severity-high'
-    };
+(function (window) {
+    const RULE_ORDER = ['pf', 'esi', 'tds', 'pt', 'minWage', 'attendance', 'salaryAnomaly'];
 
-    const FALLBACK_VIOLATION_MESSAGE = 'Compliance rule triggered. Review the payroll and attendance evidence for this employee.';
-
+    const capitalize = (value) => value ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : '';
     const formatTimestamp = (value) => {
         if (!value) return '--';
         if (typeof value?.toDate === 'function') return value.toDate().toLocaleString();
@@ -14,292 +9,215 @@
         return Number.isNaN(parsed.getTime()) ? '--' : parsed.toLocaleString();
     };
 
-    const normalizeSeverity = (value) => {
-        if (!value) return 'Low';
-        const normal = String(value).trim().toLowerCase();
-        if (normal === 'high') return 'High';
-        if (normal === 'medium') return 'Medium';
-        return 'Low';
-    };
+    const ensureComplianceRunSelector = () => {
+        const topbar = document.querySelector('#compliance-manager .compliance-topbar');
+        if (!topbar || document.getElementById('compliance-run-selector')) return;
 
-    const normalizeViolation = (violation = {}) => ({
-        type: violation.type || 'Unknown Rule',
-        severity: normalizeSeverity(violation.severity),
-        message: violation.message || FALLBACK_VIOLATION_MESSAGE,
-        recommendedFix: violation.recommendedFix || 'Review and apply the relevant compliance remediation.'
-    });
-
-    const ensureModal = () => {
-        let modal = document.getElementById('compliance-detail-modal');
-        if (modal) return modal;
-        modal = document.createElement('div');
-        modal.id = 'compliance-detail-modal';
-        modal.className = 'compliance-modal';
-        modal.innerHTML = `
-            <div class="compliance-modal__content">
-                <div class="compliance-modal__header">
-                    <h3>Employee Risk Details</h3>
-                    <button class="compliance-modal__close" id="compliance-detail-close">&times;</button>
-                </div>
-                <div id="compliance-detail-body" class="compliance-modal__body"></div>
-            </div>
+        const wrapper = document.createElement('div');
+        wrapper.style.display = 'flex';
+        wrapper.style.alignItems = 'center';
+        wrapper.style.gap = '10px';
+        wrapper.innerHTML = `
+            <label for="compliance-run-selector" class="text-muted">Payroll Run</label>
+            <select id="compliance-run-selector" class="form-control" style="min-width: 220px;"></select>
         `;
-        document.body.appendChild(modal);
-        return modal;
+        topbar.insertBefore(wrapper, topbar.firstChild);
     };
 
-    const renderSummary = (reports) => {
-        const high = reports.filter((report) => report.summary?.riskLevel === 'High').length;
-        const medium = reports.filter((report) => report.summary?.riskLevel === 'Medium').length;
-        const low = reports.filter((report) => report.summary?.riskLevel === 'Low').length;
+    const renderSummary = (employeeSummaries) => {
+        const summaryHigh = employeeSummaries.filter((item) => item.severity === 'high').length;
+        const summaryMedium = employeeSummaries.filter((item) => item.severity === 'medium').length;
+        const summaryLow = employeeSummaries.filter((item) => item.severity === 'low').length;
 
-        const highEl = document.getElementById('compliance-summary-high');
-        const mediumEl = document.getElementById('compliance-summary-medium');
-        const lowEl = document.getElementById('compliance-summary-low');
-        if (highEl) highEl.textContent = high;
-        if (mediumEl) mediumEl.textContent = medium;
-        if (lowEl) lowEl.textContent = low;
-
-        const scoreEl = document.getElementById('compliance-score-value');
-        const lastScanEl = document.getElementById('compliance-last-scan');
-        const lastScanChipEl = document.getElementById('compliance-summary-last-scan');
-        const scores = reports.map((report) => report.summary?.riskScore ?? 0);
-        const averageScore = scores.length
-            ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
-            : 0;
-
-        if (scoreEl) scoreEl.textContent = `${averageScore}`;
-
-        const lastEvaluated = reports
-            .map((report) => report.summary?.lastEvaluated || report.summary?.lastEvaluatedIso)
+        const totalScore = employeeSummaries.reduce((sum, item) => sum + (Number(item.riskScore) || 0), 0);
+        const avgScore = employeeSummaries.length ? Math.round(totalScore / employeeSummaries.length) : 0;
+        const lastTs = employeeSummaries
+            .map((item) => item.timestamp)
             .filter(Boolean)
-            .sort((a, b) => {
-                const aDate = typeof a?.toDate === 'function' ? a.toDate().getTime() : new Date(a).getTime();
-                const bDate = typeof b?.toDate === 'function' ? b.toDate().getTime() : new Date(b).getTime();
-                return bDate - aDate;
-            })[0];
+            .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
 
-        const formattedLastScan = formatTimestamp(lastEvaluated);
-        if (lastScanEl) lastScanEl.textContent = formattedLastScan;
-        if (lastScanChipEl) lastScanChipEl.textContent = formattedLastScan;
+        const setText = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value;
+        };
+
+        setText('compliance-summary-high', summaryHigh);
+        setText('compliance-summary-medium', summaryMedium);
+        setText('compliance-summary-low', summaryLow);
+        setText('compliance-score-value', avgScore);
+        setText('compliance-last-scan', formatTimestamp(lastTs));
+        setText('compliance-summary-last-scan', formatTimestamp(lastTs));
     };
 
-    const iconForSeverity = (severity) => {
-        if (severity === 'High') return 'fa-circle-exclamation';
-        if (severity === 'Medium') return 'fa-triangle-exclamation';
-        return 'fa-circle-check';
+    const renderEmployeeTable = (employeeResults) => {
+        const tableBody = document.getElementById('compliance-risk-table-body');
+        if (!tableBody) return;
+        tableBody.innerHTML = '';
+
+        employeeResults.forEach((result) => {
+            const severity = result.summary?.severity || 'low';
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${result.summary?.employeeName || result.employeeId}</td>
+                <td>${result.summary?.riskScore ?? 0}</td>
+                <td><span class="severity-chip severity-${severity}">${capitalize(severity)}</span></td>
+                <td>${result.summary?.violationCount ?? 0}</td>
+                <td><button class="btn btn-outline view-compliance-details" data-employee="${result.employeeId}">Expand</button></td>
+            `;
+            tableBody.appendChild(row);
+
+            const detailRow = document.createElement('tr');
+            detailRow.id = `compliance-rule-row-${result.employeeId}`;
+            detailRow.style.display = 'none';
+            const rulesHtml = RULE_ORDER.map((ruleKey) => {
+                const rule = result.rules?.[ruleKey] || {};
+                const sev = rule.severity || 'low';
+                return `
+                    <div style="padding: 8px; border-bottom: 1px solid #eee;">
+                        <strong>${ruleKey}</strong>
+                        <span class="severity-chip severity-${sev}" style="margin-left: 8px;">${capitalize(sev)}</span>
+                        <div>Passed: ${rule.passed ? 'Yes' : 'No'}</div>
+                        <div>Reason: ${rule.reason || '--'}</div>
+                        <div class="text-muted">Expected: ${JSON.stringify(rule.expected ?? null)}</div>
+                        <div class="text-muted">Actual: ${JSON.stringify(rule.actual ?? null)}</div>
+                    </div>
+                `;
+            }).join('');
+
+            detailRow.innerHTML = `<td colspan="5">${rulesHtml}</td>`;
+            tableBody.appendChild(detailRow);
+        });
     };
 
-    const extractReportViolations = (report) => {
-        const direct = Array.isArray(report.violations) ? report.violations : [];
-        const top = Array.isArray(report.topViolations) ? report.topViolations : [];
-        const source = direct.length ? direct : top;
-        return source.map((item) => normalizeViolation(item));
-    };
-
-    const renderRiskCards = (reports) => {
+    const renderRiskCards = (employeeResults) => {
         const container = document.getElementById('compliance-risk-cards');
         if (!container) return;
+
         container.innerHTML = '';
-
-        const violations = reports.flatMap((report) =>
-            extractReportViolations(report).map((violation) => ({
-                ...violation,
-                employeeName: report.summary?.employeeName,
-            }))
-        );
-
-        if (violations.length === 0) {
-            container.innerHTML = '<div class="anomaly-empty">No compliance risks detected for this cycle.</div>';
+        if (!employeeResults.length) {
+            container.innerHTML = '<div class="anomaly-empty">No compliance results available for this payroll run.</div>';
             return;
         }
 
-        violations.slice(0, 8).forEach((violation) => {
+        employeeResults.forEach((result) => {
+            const severity = result.summary?.severity || 'low';
             const card = document.createElement('div');
-            card.className = `risk-card fade-in ${SEVERITY_CLASS[violation.severity] || ''}`;
+            card.className = `risk-card fade-in severity-${severity}`;
             card.innerHTML = `
                 <div class="risk-card__header">
-                    <span class="risk-label ${violation.severity?.toLowerCase() || ''}">${violation.severity}</span>
-                    <span class="text-muted">${violation.type}</span>
+                    <span><strong>${result.summary?.employeeName || result.employeeId}</strong></span>
+                    <span class="severity-chip severity-${severity}">${capitalize(severity)}</span>
                 </div>
-                <div>
-                    <strong>${violation.employeeName || 'Unknown Employee'}</strong>
-                    <p class="text-muted">${violation.message}</p>
-                </div>
-                <div class="risk-actions">
-                    <span class="severity-chip ${SEVERITY_CLASS[violation.severity] || ''}">
-                        <i class="fas ${iconForSeverity(violation.severity)}"></i> ${violation.severity}
-                    </span>
-                </div>
+                <div class="text-muted">Violations: ${result.summary?.violationCount ?? 0}</div>
+                <div class="text-muted">Risk Score: ${result.summary?.riskScore ?? 0}</div>
             `;
             container.appendChild(card);
         });
     };
 
-    const renderRiskTable = (reports) => {
-        const tableBody = document.getElementById('compliance-risk-table-body');
-        if (!tableBody) return;
+    const loadRunResults = async (runId) => {
+        if (!runId || !window.firebaseDb || !window.firestoreFunctions) return [];
 
-        const sorted = [...reports].sort((a, b) => (b.summary?.riskScore ?? 0) - (a.summary?.riskScore ?? 0));
-        tableBody.innerHTML = '';
-
-        if (sorted.length === 0) {
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="4" class="text-muted">No compliance reports available yet.</td>
-                </tr>
-            `;
-            return;
-        }
-
-        sorted.forEach((report) => {
-            const row = document.createElement('tr');
-            const riskLevel = normalizeSeverity(report.summary?.riskLevel);
-            const severityClass = SEVERITY_CLASS[riskLevel] || '';
-            row.innerHTML = `
-                <td>${report.summary?.employeeName || 'Unknown'}</td>
-                <td>${report.summary?.riskScore ?? 0}</td>
-                <td><span class="severity-chip ${severityClass}">${riskLevel}</span></td>
-                <td><button class="btn btn-outline view-compliance-details" data-employee="${report.id}">View Details</button></td>
-            `;
-            tableBody.appendChild(row);
-        });
-    };
-
-    const fetchViolations = async (employeeId) => {
-        if (!window.firebaseDb || !window.firestoreFunctions) return [];
         const { doc, getDoc } = window.firestoreFunctions;
-        try {
-            const violationsRef = doc(window.firebaseDb, 'complianceViolations', employeeId, 'violations', 'list');
-            const snapshot = await getDoc(violationsRef);
-            if (!snapshot.exists()) return [];
-            const data = snapshot.data();
-            return Array.isArray(data?.list) ? data.list.map((item) => normalizeViolation(item)) : [];
-        } catch (error) {
-            console.warn('[ComplianceUI] Failed to load violations:', error);
-            return [];
-        }
+        const db = window.firebaseDb;
+        const metaSnap = await getDoc(doc(db, 'complianceResults', runId, '_meta', 'scanInfo'));
+        const employeeIds = metaSnap.exists() ? (metaSnap.data()?.employeeIds || []) : [];
+
+        const results = await Promise.all(employeeIds.map(async (employeeId) => {
+            const [summarySnap, rulesSnap] = await Promise.all([
+                getDoc(doc(db, 'complianceResults', runId, employeeId, 'summary')),
+                getDoc(doc(db, 'complianceResults', runId, employeeId, 'rules')),
+            ]);
+
+            return {
+                employeeId,
+                summary: summarySnap.exists() ? summarySnap.data() : {},
+                rules: rulesSnap.exists() ? rulesSnap.data() : {},
+            };
+        }));
+
+        return results.sort((a, b) => (b.summary?.riskScore || 0) - (a.summary?.riskScore || 0));
     };
 
-    const renderModalContent = async (report) => {
-        const modal = ensureModal();
-        const modalBody = document.getElementById('compliance-detail-body');
-        if (!modalBody || !report) return;
-
-        const initialViolations = extractReportViolations(report);
-        modalBody.innerHTML = `
-            <div class="detail-summary">
-                <div>
-                    <strong>${report.summary?.employeeName || 'Unknown Employee'}</strong>
-                    <div class="text-muted">Last evaluated: ${formatTimestamp(report.summary?.lastEvaluated || report.summary?.lastEvaluatedIso)}</div>
-                </div>
-                <span class="severity-chip ${SEVERITY_CLASS[normalizeSeverity(report.summary?.riskLevel)] || ''}">
-                    ${normalizeSeverity(report.summary?.riskLevel)} Risk
-                </span>
-            </div>
-            <div class="detail-violations">
-                ${initialViolations.length === 0 ? '<div class="text-muted">Loading violations...</div>' : ''}
-            </div>
-        `;
-
-        const listContainer = modalBody.querySelector('.detail-violations');
-        const resolvedViolations = initialViolations.length
-            ? initialViolations
-            : await fetchViolations(report.id);
-
-        if (resolvedViolations.length === 0) {
-            listContainer.innerHTML = '<div class="text-muted">No violations reported.</div>';
-        }
-
-        resolvedViolations.forEach((violation) => {
-            const item = document.createElement('div');
-            item.className = 'violation-item';
-            item.innerHTML = `
-                <div class="violation-item__header">
-                    <span class="severity-chip ${SEVERITY_CLASS[violation.severity] || ''}">
-                        <i class="fas ${iconForSeverity(violation.severity)}"></i> ${violation.severity}
-                    </span>
-                    <span class="text-muted">${violation.type}</span>
-                </div>
-                <div>${violation.message}</div>
-                <div class="text-muted">Suggested fix: ${violation.recommendedFix}</div>
-            `;
-            listContainer.appendChild(item);
-        });
-
-        modal.classList.add('open');
+    const loadPayrollRuns = async () => {
+        if (!window.firebaseDb || !window.firestoreFunctions) return [];
+        const { collection, getDocs, orderBy, query } = window.firestoreFunctions;
+        const snapshot = await getDocs(query(collection(window.firebaseDb, 'payrollRecords'), orderBy('generatedAt', 'desc')));
+        return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
     };
 
-    const attachInteractionHandlers = (reportsRef) => {
-        const modal = ensureModal();
-        const closeButton = document.getElementById('compliance-detail-close');
-        if (closeButton) {
-            closeButton.onclick = () => modal.classList.remove('open');
-        }
-        window.addEventListener('click', (event) => {
-            if (event.target === modal) {
-                modal.classList.remove('open');
-            }
-        });
-
+    const bindInteractions = (state) => {
         document.addEventListener('click', (event) => {
             const target = event.target;
-            if (target?.classList?.contains('view-compliance-details')) {
-                const report = reportsRef.value.find((item) => item.id === target.dataset.employee);
-                renderModalContent(report);
-            }
+            if (!target?.classList?.contains('view-compliance-details')) return;
+            const employeeId = target.dataset.employee;
+            const row = document.getElementById(`compliance-rule-row-${employeeId}`);
+            if (!row) return;
+            row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
         });
 
         const runButton = document.getElementById('compliance-run-scan');
         if (runButton) {
-            runButton.onclick = () => {
-                if (typeof window.runComplianceScan === 'function') {
-                    runButton.disabled = true;
-                    runButton.textContent = 'Running Compliance Scan...';
-                    window
-                        .runComplianceScan('manual')
-                        .catch(() => {})
-                        .finally(() => {
-                            runButton.disabled = false;
-                            runButton.innerHTML = '<i class="fas fa-wave-square"></i> Run Compliance Scan';
-                        });
+            runButton.onclick = async () => {
+                if (typeof window.runComplianceScan !== 'function') return;
+                runButton.disabled = true;
+                runButton.textContent = 'Running Compliance Scan...';
+                try {
+                    await window.runComplianceScan(state.selectedRunId || 'manual');
+                } finally {
+                    runButton.disabled = false;
+                    runButton.innerHTML = '<i class="fas fa-wave-square"></i> Run Compliance Scan';
                 }
             };
         }
     };
 
-    const listenComplianceReports = () => {
-        if (!window.firebaseDb || !window.firestoreFunctions) return;
-        const { collection, onSnapshot, orderBy, query } = window.firestoreFunctions;
+    const init = async () => {
+        ensureComplianceRunSelector();
 
-        onSnapshot(
-            query(collection(window.firebaseDb, 'complianceViolations'), orderBy('summary.riskScore', 'desc')),
-            (snapshot) => {
-                const reports = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-                renderSummary(reports);
-                renderRiskCards(reports);
-                renderRiskTable(reports);
-                listenComplianceReports.lastReports = reports;
-            },
-            (error) => {
-                console.error('[ComplianceUI] Failed to listen for compliance reports:', error);
+        const selector = document.getElementById('compliance-run-selector');
+        if (!selector) return;
+
+        const state = { selectedRunId: null };
+        bindInteractions(state);
+
+        const renderRun = async (runId) => {
+            state.selectedRunId = runId;
+            const results = await loadRunResults(runId);
+            renderSummary(results.map((item) => item.summary || {}));
+            renderRiskCards(results);
+            renderEmployeeTable(results);
+        };
+
+        const runs = await loadPayrollRuns();
+        selector.innerHTML = runs.length
+            ? runs.map((run) => `<option value="${run.id}">${run.month || '--'}/${run.year || '--'} • ${run.id.slice(0, 8)}</option>`).join('')
+            : '<option value="">No payroll runs found</option>';
+
+        if (runs[0]?.id) {
+            await renderRun(runs[0].id);
+        }
+
+        selector.onchange = async () => {
+            await renderRun(selector.value);
+        };
+
+        window.addEventListener('complianceScanCompleted', async (event) => {
+            if (!state.selectedRunId || event?.detail?.runId === state.selectedRunId) {
+                await renderRun(state.selectedRunId || event?.detail?.runId);
             }
-        );
+        });
     };
 
     window.addEventListener('DOMContentLoaded', () => {
-        const reportsRef = {
-            get value() {
-                return listenComplianceReports.lastReports || [];
-            },
-        };
-        attachInteractionHandlers(reportsRef);
         const ensureReady = () => {
             if (window.firebaseDb && window.firestoreFunctions) {
-                listenComplianceReports();
+                init().catch((error) => {
+                    console.error('[ComplianceUI] Failed to initialize new compliance UI.', error);
+                });
                 return;
             }
-            window.setTimeout(ensureReady, 1000);
+            window.setTimeout(ensureReady, 500);
         };
         ensureReady();
     });

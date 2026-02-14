@@ -30,6 +30,7 @@ export const savePayroll = async ({ month, year, payrollData }) => {
     window.dispatchEvent(
       new CustomEvent('payrollRunCompleted', {
         detail: {
+          runId: payrollRunId,
           payrollRunId,
           month,
           year,
@@ -40,7 +41,7 @@ export const savePayroll = async ({ month, year, payrollData }) => {
     );
 
     if (typeof window.runComplianceScan === 'function') {
-      window.runComplianceScan('payrollRunCompleted').catch((error) => {
+      window.runComplianceScan(payrollRunId).catch((error) => {
         console.error('[Payroll] Compliance scan trigger failed after payroll completion.', error);
       });
     }
