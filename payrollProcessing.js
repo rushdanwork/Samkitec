@@ -25,13 +25,24 @@ export const buildPayrollRunPayload = ({
 export const savePayroll = async ({ month, year, payrollData }) => {
   const payload = buildPayrollRunPayload({ month, year, payrollData });
   const payrollRunId = await savePayrollRun(payload);
+  const runId = `run_${Date.now()}`;
 
   if (typeof window !== 'undefined') {
-    window.__latestRunId = payrollRunId;
-    window.dispatchEvent(
+    const allEmployeePayrollResults = payload.payrollData;
+    let runs = JSON.parse(localStorage.getItem('payrollRuns')) || [];
+    runs.push({
+      runId,
+      timestamp: Date.now(),
+      payrollData: allEmployeePayrollResults,
+      payrollRunId,
+    });
+    localStorage.setItem('payrollRuns', JSON.stringify(runs));
+
+    window.__latestRunId = runId;
+    document.dispatchEvent(
       new CustomEvent('payrollRunCompleted', {
         detail: {
-          runId: payrollRunId,
+          runId,
           payrollRunId,
           month,
           year,
@@ -42,9 +53,7 @@ export const savePayroll = async ({ month, year, payrollData }) => {
     );
 
     if (typeof window.runComplianceScan === 'function') {
-      window.runComplianceScan(payrollRunId).catch((error) => {
-        console.error('[Payroll] Compliance scan trigger failed after payroll completion.', error);
-      });
+      window.runComplianceScan(runId);
     }
   }
 
