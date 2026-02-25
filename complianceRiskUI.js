@@ -1,12 +1,20 @@
 (function (window) {
-    const RULE_ORDER = ['pf', 'esi', 'tds', 'pt', 'minWage', 'attendance', 'salaryAnomaly'];
+    const SEVERITY_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
-    const capitalize = (value) => value ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : '';
-    const formatTimestamp = (value) => {
-        if (!value) return '--';
-        if (typeof value?.toDate === 'function') return value.toDate().toLocaleString();
-        const parsed = new Date(value);
-        return Number.isNaN(parsed.getTime()) ? '--' : parsed.toLocaleString();
+    const capitalize = (value) => value ? `${value.charAt(0).toUpperCase()}${value.slice(1).toLowerCase()}` : '';
+
+    const normalizeMonthOption = (run = {}) => {
+        if (!run?.month || !run?.year) return { id: run.id, label: run.id || '--', monthKey: run.id || null };
+        const monthNum = Number(run.month);
+        const monthPart = Number.isFinite(monthNum)
+            ? String(monthNum).padStart(2, '0')
+            : String(run.month).slice(0, 2).padStart(2, '0');
+        const monthKey = `${run.year}-${monthPart}`;
+        return {
+            id: monthKey,
+            label: `${monthKey} • ${String(run.id || '').slice(0, 8)}`,
+            monthKey,
+        };
     };
 
     const ensureComplianceRunSelector = () => {
@@ -18,50 +26,75 @@
         wrapper.style.alignItems = 'center';
         wrapper.style.gap = '10px';
         wrapper.innerHTML = `
-            <label for="compliance-run-selector" class="text-muted">Payroll Run</label>
+            <label for="compliance-run-selector" class="text-muted">Month</label>
             <select id="compliance-run-selector" class="form-control" style="min-width: 220px;"></select>
         `;
         topbar.insertBefore(wrapper, topbar.firstChild);
     };
 
-    const renderSummary = (employeeSummaries) => {
-        const summaryHigh = employeeSummaries.filter((item) => item.severity === 'high').length;
-        const summaryMedium = employeeSummaries.filter((item) => item.severity === 'medium').length;
-        const summaryLow = employeeSummaries.filter((item) => item.severity === 'low').length;
-
-        const totalScore = employeeSummaries.reduce((sum, item) => sum + (Number(item.riskScore) || 0), 0);
-        const avgScore = employeeSummaries.length ? Math.round(totalScore / employeeSummaries.length) : 0;
-        const lastTs = employeeSummaries
-            .map((item) => item.timestamp)
-            .filter(Boolean)
-            .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+    const renderSummary = (events) => {
+        const severityCount = events.reduce((acc, item) => {
+            const key = String(item.severity || 'LOW').toUpperCase();
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
 
         const setText = (id, value) => {
             const el = document.getElementById(id);
             if (el) el.textContent = value;
         };
 
-        setText('compliance-summary-high', summaryHigh);
-        setText('compliance-summary-medium', summaryMedium);
-        setText('compliance-summary-low', summaryLow);
-        setText('compliance-score-value', avgScore);
-        setText('compliance-last-scan', formatTimestamp(lastTs));
-        setText('compliance-summary-last-scan', formatTimestamp(lastTs));
+        setText('compliance-summary-high', (severityCount.HIGH || 0) + (severityCount.CRITICAL || 0));
+        setText('compliance-summary-medium', severityCount.MEDIUM || 0);
+        setText('compliance-summary-low', severityCount.LOW || 0);
+        setText('compliance-score-value', events.length);
+        setText('compliance-last-scan', events.length ? 'From Firestore complianceEvents' : '--');
+        setText('compliance-summary-last-scan', events.length ? 'From Firestore complianceEvents' : '--');
     };
 
-    const renderEmployeeTable = (employeeResults) => {
+    const groupViolationsByEmployee = (events) => {
+        const grouped = new Map();
+        events.forEach((event) => {
+            const employeeId = event.employeeId || 'unknown';
+            const existing = grouped.get(employeeId) || {
+                employeeId,
+                employeeName: event.employeeName || employeeId,
+                severity: 'LOW',
+                violations: [],
+            };
+            existing.violations.push(event);
+
+            const currentIndex = SEVERITY_ORDER.indexOf(existing.severity);
+            const nextSeverity = String(event.severity || 'LOW').toUpperCase();
+            const nextIndex = SEVERITY_ORDER.indexOf(nextSeverity);
+            if (nextIndex !== -1 && (currentIndex === -1 || nextIndex < currentIndex)) {
+                existing.severity = nextSeverity;
+            }
+
+            grouped.set(employeeId, existing);
+        });
+
+        return Array.from(grouped.values()).sort((a, b) => {
+            const aIndex = SEVERITY_ORDER.indexOf(a.severity);
+            const bIndex = SEVERITY_ORDER.indexOf(b.severity);
+            if (aIndex !== bIndex) return aIndex - bIndex;
+            return b.violations.length - a.violations.length;
+        });
+    };
+
+    const renderEmployeeTable = (events) => {
+        const employeeResults = groupViolationsByEmployee(events);
         const tableBody = document.getElementById('compliance-risk-table-body');
         if (!tableBody) return;
         tableBody.innerHTML = '';
 
         employeeResults.forEach((result) => {
-            const severity = result.summary?.severity || 'low';
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>${result.summary?.employeeName || result.employeeId}</td>
-                <td>${result.summary?.riskScore ?? 0}</td>
-                <td><span class="severity-chip severity-${severity}">${capitalize(severity)}</span></td>
-                <td>${result.summary?.violationCount ?? 0}</td>
+                <td>${result.employeeName}</td>
+                <td>${result.violations.length}</td>
+                <td><span class="severity-chip severity-${result.severity.toLowerCase()}">${capitalize(result.severity)}</span></td>
+                <td>${result.violations.map((item) => item.ruleId).join(', ')}</td>
                 <td><button class="btn btn-outline view-compliance-details" data-employee="${result.employeeId}">Expand</button></td>
             `;
             tableBody.appendChild(row);
@@ -69,74 +102,65 @@
             const detailRow = document.createElement('tr');
             detailRow.id = `compliance-rule-row-${result.employeeId}`;
             detailRow.style.display = 'none';
-            const rulesHtml = RULE_ORDER.map((ruleKey) => {
-                const rule = result.rules?.[ruleKey] || {};
-                const sev = rule.severity || 'low';
-                return `
-                    <div style="padding: 8px; border-bottom: 1px solid #eee;">
-                        <strong>${ruleKey}</strong>
-                        <span class="severity-chip severity-${sev}" style="margin-left: 8px;">${capitalize(sev)}</span>
-                        <div>Passed: ${rule.passed ? 'Yes' : 'No'}</div>
-                        <div>Reason: ${rule.reason || '--'}</div>
-                        <div class="text-muted">Expected: ${JSON.stringify(rule.expected ?? null)}</div>
-                        <div class="text-muted">Actual: ${JSON.stringify(rule.actual ?? null)}</div>
-                    </div>
-                `;
-            }).join('');
-
-            detailRow.innerHTML = `<td colspan="5">${rulesHtml}</td>`;
+            detailRow.innerHTML = `
+                <td colspan="5">
+                    ${result.violations.map((item) => `
+                        <div style="padding: 8px; border-bottom: 1px solid #eee;">
+                            <strong>${item.ruleId}</strong>
+                            <span class="severity-chip severity-${String(item.severity || 'LOW').toLowerCase()}" style="margin-left: 8px;">
+                                ${capitalize(item.severity)}
+                            </span>
+                            <div>${item.description || '--'}</div>
+                            <div class="text-muted">Expected: ${item.expected || '--'}</div>
+                            <div class="text-muted">Actual: ${item.actual || '--'}</div>
+                            <div class="text-muted">Impact: ${item.impact || '--'}</div>
+                        </div>
+                    `).join('')}
+                </td>
+            `;
             tableBody.appendChild(detailRow);
         });
+
+        if (!employeeResults.length) {
+            tableBody.innerHTML = '<tr><td colspan="5" class="text-muted">No compliance violations found for this month.</td></tr>';
+        }
     };
 
-    const renderRiskCards = (employeeResults) => {
+    const renderRiskCards = (events) => {
+        const employeeResults = groupViolationsByEmployee(events);
         const container = document.getElementById('compliance-risk-cards');
         if (!container) return;
 
         container.innerHTML = '';
         if (!employeeResults.length) {
-            container.innerHTML = '<div class="anomaly-empty">No compliance results available for this payroll run.</div>';
+            container.innerHTML = '<div class="anomaly-empty">No compliance events available for this month.</div>';
             return;
         }
 
         employeeResults.forEach((result) => {
-            const severity = result.summary?.severity || 'low';
             const card = document.createElement('div');
-            card.className = `risk-card fade-in severity-${severity}`;
+            card.className = `risk-card fade-in severity-${result.severity.toLowerCase()}`;
             card.innerHTML = `
                 <div class="risk-card__header">
-                    <span><strong>${result.summary?.employeeName || result.employeeId}</strong></span>
-                    <span class="severity-chip severity-${severity}">${capitalize(severity)}</span>
+                    <span><strong>${result.employeeName}</strong></span>
+                    <span class="severity-chip severity-${result.severity.toLowerCase()}">${capitalize(result.severity)}</span>
                 </div>
-                <div class="text-muted">Violations: ${result.summary?.violationCount ?? 0}</div>
-                <div class="text-muted">Risk Score: ${result.summary?.riskScore ?? 0}</div>
+                <div class="text-muted">Violations: ${result.violations.length}</div>
+                <div class="text-muted">Rules: ${result.violations.map((item) => item.ruleId).join(', ')}</div>
             `;
             container.appendChild(card);
         });
     };
 
-    const loadRunResults = async (runId) => {
-        if (!runId || !window.firebaseDb || !window.firestoreFunctions) return [];
+    const loadComplianceEvents = async (monthKey) => {
+        if (!monthKey || !window.firebaseDb || !window.firestoreFunctions) return [];
 
-        const { doc, getDoc } = window.firestoreFunctions;
-        const db = window.firebaseDb;
-        const metaSnap = await getDoc(doc(db, 'complianceResults', runId, '_meta', 'scanInfo'));
-        const employeeIds = metaSnap.exists() ? (metaSnap.data()?.employeeIds || []) : [];
+        const { collection, getDocs, query, where } = window.firestoreFunctions;
+        const snapshot = await getDocs(
+            query(collection(window.firebaseDb, 'complianceEvents'), where('scanMonth', '==', monthKey))
+        );
 
-        const results = await Promise.all(employeeIds.map(async (employeeId) => {
-            const [summarySnap, rulesSnap] = await Promise.all([
-                getDoc(doc(db, 'complianceResults', runId, employeeId, 'summary')),
-                getDoc(doc(db, 'complianceResults', runId, employeeId, 'rules')),
-            ]);
-
-            return {
-                employeeId,
-                summary: summarySnap.exists() ? summarySnap.data() : {},
-                rules: rulesSnap.exists() ? rulesSnap.data() : {},
-            };
-        }));
-
-        return results.sort((a, b) => (b.summary?.riskScore || 0) - (a.summary?.riskScore || 0));
+        return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
     };
 
     const loadPayrollRuns = async () => {
@@ -146,7 +170,7 @@
         return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
     };
 
-    const bindInteractions = (state) => {
+    const bindInteractions = (state, renderMonth) => {
         document.addEventListener('click', (event) => {
             const target = event.target;
             if (!target?.classList?.contains('view-compliance-details')) return;
@@ -163,7 +187,10 @@
                 runButton.disabled = true;
                 runButton.textContent = 'Running Compliance Scan...';
                 try {
-                    await window.runComplianceScan(state.selectedRunId || 'manual');
+                    await window.runComplianceScan(state.selectedMonth || 'manual');
+                    await renderMonth(state.selectedMonth);
+                } catch (error) {
+                    console.error('[ComplianceUI] Failed to run compliance scan.', error);
                 } finally {
                     runButton.disabled = false;
                     runButton.innerHTML = '<i class="fas fa-wave-square"></i> Run Compliance Scan';
@@ -178,33 +205,38 @@
         const selector = document.getElementById('compliance-run-selector');
         if (!selector) return;
 
-        const state = { selectedRunId: null };
-        bindInteractions(state);
+        const state = { selectedMonth: null };
 
-        const renderRun = async (runId) => {
-            state.selectedRunId = runId;
-            const results = await loadRunResults(runId);
-            renderSummary(results.map((item) => item.summary || {}));
-            renderRiskCards(results);
-            renderEmployeeTable(results);
+        const renderMonth = async (monthKey) => {
+            if (!monthKey) return;
+            state.selectedMonth = monthKey;
+            const events = await loadComplianceEvents(monthKey);
+            renderSummary(events);
+            renderRiskCards(events);
+            renderEmployeeTable(events);
         };
 
+        bindInteractions(state, renderMonth);
+
         const runs = await loadPayrollRuns();
-        selector.innerHTML = runs.length
-            ? runs.map((run) => `<option value="${run.id}">${run.month || '--'}/${run.year || '--'} • ${run.id.slice(0, 8)}</option>`).join('')
+        const options = runs.map(normalizeMonthOption).filter((item) => item.monthKey);
+
+        selector.innerHTML = options.length
+            ? options.map((run) => `<option value="${run.monthKey}">${run.label}</option>`).join('')
             : '<option value="">No payroll runs found</option>';
 
-        if (runs[0]?.id) {
-            await renderRun(runs[0].id);
+        if (options[0]?.monthKey) {
+            await renderMonth(options[0].monthKey);
         }
 
         selector.onchange = async () => {
-            await renderRun(selector.value);
+            await renderMonth(selector.value);
         };
 
         window.addEventListener('complianceScanCompleted', async (event) => {
-            if (!state.selectedRunId || event?.detail?.runId === state.selectedRunId) {
-                await renderRun(state.selectedRunId || event?.detail?.runId);
+            const scanMonth = event?.detail?.month;
+            if (!state.selectedMonth || scanMonth === state.selectedMonth) {
+                await renderMonth(state.selectedMonth || scanMonth);
             }
         });
     };
@@ -213,7 +245,7 @@
         const ensureReady = () => {
             if (window.firebaseDb && window.firestoreFunctions) {
                 init().catch((error) => {
-                    console.error('[ComplianceUI] Failed to initialize new compliance UI.', error);
+                    console.error('[ComplianceUI] Failed to initialize compliance UI.', error);
                 });
                 return;
             }
