@@ -1,11 +1,12 @@
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
+  setDoc,
 } from 'firebase/firestore';
 
 import { getFirestoreDb, getServerTimestamp } from './firebaseService.js';
@@ -36,12 +37,48 @@ export const listenPayrollRuns = (onSuccess, onError) => {
 
 export const savePayrollRun = async (payload) => {
   const db = getFirestoreDb();
-  const docRef = await addDoc(collection(db, PAYROLL_COLLECTION), {
-    ...payload,
+  const employeeId = String(payload.employeeId || '').trim();
+  const month = String(payload.month || '').trim();
+
+  if (!employeeId || !month) {
+    throw new Error('savePayrollRun requires both employeeId and month.');
+  }
+
+  const docId = `${employeeId}_${month}`;
+  const payrollRef = doc(db, PAYROLL_COLLECTION, docId);
+  const payrollRecord = {
+    employeeId,
+    month,
+    basic: Number(payload.basic ?? payload.basicSalary ?? 0),
+    hra: Number(payload.hra ?? 0),
+    allowances: Number(payload.allowances ?? 0),
+    pf: Number(payload.pf ?? 0),
+    esi: Number(payload.esi ?? 0),
+    deductions: Number(payload.deductions ?? 0),
+    gross: Number(payload.gross ?? payload.earnings ?? 0),
+    net: Number(payload.net ?? payload.netSalary ?? payload.netPay ?? 0),
     generatedAt: getServerTimestamp(),
-    status: payload.status || 'Completed',
-  });
-  return docRef.id;
+  };
+
+  await setDoc(payrollRef, payrollRecord, { merge: true });
+  return docId;
+};
+
+export const getPayrollForEmployee = async (employeeId, month) => {
+  const db = getFirestoreDb();
+  const safeEmployeeId = String(employeeId || '').trim();
+  const safeMonth = String(month || '').trim();
+
+  if (!safeEmployeeId || !safeMonth) {
+    throw new Error('getPayrollForEmployee requires both employeeId and month.');
+  }
+
+  const payrollRef = doc(db, PAYROLL_COLLECTION, `${safeEmployeeId}_${safeMonth}`);
+  const snapshot = await getDoc(payrollRef);
+
+  if (!snapshot.exists()) return null;
+
+  return { id: snapshot.id, ...snapshot.data() };
 };
 
 export const deletePayrollRun = async (runId) => {

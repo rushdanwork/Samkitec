@@ -11,11 +11,11 @@ import runWageRules from './backend/complianceRules/wageRules.js';
 import runAttendanceFraudRules from './backend/complianceRules/attendanceFraudRules.js';
 import runOvertimeRules from './backend/complianceRules/overtimeRules.js';
 import runSalaryAnomalyRules from './backend/complianceRules/salaryAnomalyRules.js';
+import { getPayrollForEmployee } from './payrollService.js';
 
 const COLLECTIONS = {
   employees: 'employees',
   attendance: 'attendanceRecords',
-  payroll: 'payrollRecords',
   stateRules: 'stateRules',
   complianceResults: 'complianceResults',
   complianceViolationsLegacy: 'complianceViolations',
@@ -94,7 +94,7 @@ const checkPfRule = ({ employee, payrollRecord }) => {
     });
   }
 
-  const basicSalary = toNumber(payrollRecord.basicSalary);
+  const basicSalary = toNumber(payrollRecord.basicSalary ?? payrollRecord.basic);
   const pfDeduction = toNumber(payrollRecord.pf || payrollRecord.pfDeduction || payrollRecord.deductionsPF);
   const requiredPf = basicSalary * 0.12;
   if (pfDeduction + 0.01 >= requiredPf) return null;
@@ -140,9 +140,9 @@ const checkEsiRule = ({ employee, payrollRecord }) => {
 
 const checkNetPayMismatchRule = ({ employee, payrollRecord }) => {
   if (!payrollRecord) return null;
-  const earnings = toNumber(payrollRecord.basicSalary) + toNumber(payrollRecord.allowances) + toNumber(payrollRecord.earnings);
+  const earnings = toNumber(payrollRecord.gross ?? payrollRecord.earnings) || (toNumber(payrollRecord.basicSalary ?? payrollRecord.basic) + toNumber(payrollRecord.hra) + toNumber(payrollRecord.allowances));
   const deductions = toNumber(payrollRecord.deductions);
-  const net = toNumber(payrollRecord.netSalary || payrollRecord.netPay);
+  const net = toNumber(payrollRecord.netSalary ?? payrollRecord.netPay ?? payrollRecord.net);
   const expectedNet = earnings - deductions;
 
   if (Math.abs(expectedNet - net) < 0.5) return null;
@@ -236,17 +236,6 @@ const summarizeAttendanceByEmployeeForMonth = (records = {}, monthKey) => {
   return result;
 };
 
-const buildPayrollByEmployeeForMonth = (payrollRuns = [], monthKey) => {
-  const byEmployee = new Map();
-  payrollRuns
-    .filter((run) => normalizeMonthInput(run.id, payrollRuns) === monthKey || normalizeMonthInput(`${run.year}-${String(run.month).padStart(2, '0')}`) === monthKey)
-    .forEach((run) => {
-      (run.payrollData || []).forEach((item) => {
-        if (item?.employeeId) byEmployee.set(item.employeeId, item);
-      });
-    });
-  return byEmployee;
-};
 
 const deleteExistingComplianceEventsForMonth = async (db, monthKey) => {
   const { collection, getDocs, query, where, writeBatch } = window.firestoreFunctions;
@@ -413,7 +402,7 @@ const runComplianceScan = async (runIdMaybe = 'manual') => {
   }
 
   const db = window.firebaseDb;
-  const { collection, doc, getDoc, setDoc, serverTimestamp, writeBatch } = window.firestoreFunctions;
+  const { collection, doc, serverTimestamp, writeBatch } = window.firestoreFunctions;
 
   scanState.inProgress = true;
 
@@ -422,15 +411,14 @@ const runComplianceScan = async (runIdMaybe = 'manual') => {
       ? runIdMaybe
       : resolveRunId(null);
 
-    const [employeesFromDb, attendanceRecords, payrollRuns] = await Promise.all([
+    const [employeesFromDb, attendanceRecords] = await Promise.all([
       Array.isArray(window.employees) && window.employees.length
         ? Promise.resolve(window.employees)
         : fetchCollectionAsArray(db, COLLECTIONS.employees),
       fetchAttendanceAsObject(db),
-      fetchCollectionAsArray(db, COLLECTIONS.payroll),
     ]);
 
-    const monthKey = normalizeMonthInput(monthArg, payrollRuns);
+    const monthKey = normalizeMonthInput(monthArg, []);
     if (!monthKey) {
       console.warn('[ComplianceEngine] No month or payroll run available to scan.');
       return null;
@@ -438,16 +426,33 @@ const runComplianceScan = async (runIdMaybe = 'manual') => {
 
     const employees = employeesFromDb.filter((employee) => getEmployeeId(employee));
     const attendanceByEmployee = summarizeAttendanceByEmployeeForMonth(attendanceRecords, monthKey);
-    const payrollByEmployee = buildPayrollByEmployeeForMonth(payrollRuns, monthKey);
 
     console.info('[ComplianceEngine] Scan started.', { month: monthKey, employeeCount: employees.length });
 
     const violations = [];
 
-    employees.forEach((employee) => {
+    for (const employee of employees) {
       const employeeId = getEmployeeId(employee);
-      const payrollRecord = payrollByEmployee.get(employeeId);
       const attendanceSummary = attendanceByEmployee.get(employeeId);
+      let payrollRecord = null;
+
+      try {
+        payrollRecord = await getPayrollForEmployee(employeeId, monthKey);
+      } catch (error) {
+        console.error('[ComplianceEngine] Failed to fetch payroll record.', { employeeId, month: monthKey, error });
+        violations.push(
+          buildViolation({
+            ruleId: 'PAYROLL_FETCH_FAILED',
+            employee,
+            severity: 'HIGH',
+            description: 'Payroll fetch failed for this employee for this month',
+            expected: `Payroll record for ${monthKey}`,
+            actual: error?.message || 'Firestore fetch failed',
+            impact: 'Compliance checks could not validate payroll for this employee.',
+            error: error?.message || String(error),
+          })
+        );
+      }
 
       if (!payrollRecord) {
         violations.push(
@@ -455,7 +460,7 @@ const runComplianceScan = async (runIdMaybe = 'manual') => {
             ruleId: 'PAYROLL_MISSING',
             employee,
             severity: 'CRITICAL',
-            description: `No payroll record found for ${monthKey}.`,
+            description: 'Payroll not generated for this employee for this month',
             expected: `Payroll record for ${monthKey}`,
             actual: 'Missing',
             impact: 'Employee excluded from payroll output.',
@@ -487,7 +492,7 @@ const runComplianceScan = async (runIdMaybe = 'manual') => {
       ].filter(Boolean);
 
       checks.forEach((item) => violations.push(item));
-    });
+    }
 
     await deleteExistingComplianceEventsForMonth(db, monthKey);
 
