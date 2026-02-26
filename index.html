@@ -4741,10 +4741,15 @@
             populatePayrollEmployeeDropdown();
             populateReportEmployeeDropdown();
 
-            const runScanButton = document.getElementById('compliance-run-scan');
-            if (runScanButton) {
-                runScanButton.addEventListener('click', async () => {
-                    await runComplianceScanForSelected();
+            const btn = document.getElementById('compliance-run-scan');
+            if (btn) {
+                btn.addEventListener('click', async () => {
+                    console.log('Run Compliance Scan clicked');
+                    if (typeof window.runComplianceScan === 'function') {
+                        await window.runComplianceScan();
+                    } else {
+                        alert('Compliance engine not loaded yet.');
+                    }
                 });
             }
 
@@ -7810,69 +7815,54 @@
             return violations;
         }
 
-        async function runComplianceScanForSelected() {
-            const target = window.selectedComplianceTarget;
-            const cardContainer = document.getElementById('compliance-risk-cards');
-            const nowLabel = new Date().toLocaleString();
+        function renderComplianceResults(violations) {
+            renderComplianceViolations(violations, new Date().toLocaleString());
+        }
 
+        async function runComplianceScanAll() {
             if (!ensureFirebaseReady('payroll')) {
-                renderComplianceViolations([{ 
-                    ruleId: 'PAYROLL_FETCH_FAILED',
-                    employeeId: target?.employeeId || 'N/A',
-                    severity: 'high',
-                    description: 'Failed to fetch payroll summary from Firestore.',
-                    expected: 'firebase_ready',
-                    actual: 'firebase_unavailable',
-                    impact: 'Compliance scan unavailable until Firebase is ready.'
-                }], nowLabel);
+                alert('Compliance scan failed: Firebase is not ready.');
+                renderComplianceResults([]);
                 return;
             }
-
-            if (!target?.employeeId || !target?.month) {
-                if (cardContainer) {
-                    cardContainer.innerHTML = '<div class="anomaly-empty">Select an employee/month row from Payroll History first.</div>';
-                }
-                return;
-            }
-
-            const { doc, getDoc } = window.firestoreFunctions;
 
             try {
-                const recordRef = doc(window.firebaseDb, 'payrollRecords', `${target.employeeId}_${normalizePayrollMonth(target.month)}`);
-                const snapshot = await getDoc(recordRef);
+                const { collection, query, getDocs } = window.firestoreFunctions;
+                const snapshot = await getDocs(query(collection(window.firebaseDb, 'payrollRecords')));
 
-                if (!snapshot.exists()) {
-                    const missingViolation = {
-                        ruleId: 'PAYROLL_MISSING',
-                        employeeId: target.employeeId,
-                        severity: 'high',
-                        description: 'Payroll not generated for this employee for this month',
-                        expected: target.month,
-                        actual: 'missing',
-                        impact: 'Cannot run compliance checks without payroll summary data.'
-                    };
-                    renderComplianceViolations([missingViolation], nowLabel);
+                if (snapshot.empty) {
+                    alert('No payroll records found to scan.');
+                    renderComplianceResults([]);
                     return;
                 }
 
-                const payroll = snapshot.data();
-                console.log('[Compliance] runComplianceScanForSelected fetched payroll', payroll);
-                const violations = runPayrollRules(target.employeeId, payroll);
-                renderComplianceViolations(violations, nowLabel);
-            } catch (error) {
-                console.error('[Compliance] runComplianceScanForSelected failed', error);
-                const fetchFailedViolation = {
-                    ruleId: 'PAYROLL_FETCH_FAILED',
-                    employeeId: target.employeeId,
-                    severity: 'high',
-                    description: 'Failed to fetch payroll summary from Firestore.',
-                    expected: `${target.employeeId}_${target.month}`,
-                    actual: 'fetch_error',
-                    impact: 'Compliance scan unavailable until data fetch succeeds.'
-                };
-                renderComplianceViolations([fetchFailedViolation], nowLabel);
+                const allViolations = [];
+
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data() || {};
+                    const employeeId = Number(data.employeeId) || data.employeeId || docSnap.id;
+                    const payroll = {
+                        employeeId,
+                        month: Number(data.month) || data.month,
+                        gross: Number(data.gross),
+                        net: Number(data.net),
+                        deductions: Number(data.deductions),
+                        pf: Number(data.pf),
+                        workingDays: Number(data.workingDays),
+                        presentDays: Number(data.presentDays)
+                    };
+                    const violations = runPayrollRules(employeeId, payroll);
+                    allViolations.push(...violations);
+                });
+
+                renderComplianceResults(allViolations);
+            } catch (err) {
+                console.error('[Compliance] runComplianceScanAll failed', err);
+                alert('Compliance scan failed: ' + err.message);
             }
         }
+
+        window.runComplianceScan = runComplianceScanAll;
 
         function renderComplianceViolations(violations, scanTimestamp) {
             const cardContainer = document.getElementById('compliance-risk-cards');
@@ -8877,8 +8867,12 @@ Employees: ${employeeSummary}`);
     <script src="./payrollAnomalyDetector.js"></script>
     <script>
       document.addEventListener("DOMContentLoaded", () => {
+        if (typeof runComplianceScanAll === "function") {
+          window.runComplianceScan = runComplianceScanAll;
+        }
+
         if (typeof window.runComplianceScan === "function") {
-          window.runComplianceScan("initial").catch((error) => {
+          window.runComplianceScan().catch((error) => {
             console.error("[ComplianceEngine] Initial scan failed:", error);
           });
         } else {
