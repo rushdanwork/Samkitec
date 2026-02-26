@@ -2302,6 +2302,8 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        window.firebaseDb = db;
+        console.log("window.firebaseDb set:", window.firebaseDb);
         const storage = getStorage(app);
         const firebaseState = {
             app,
