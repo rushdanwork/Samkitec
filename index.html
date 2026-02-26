@@ -3071,11 +3071,11 @@
                             <table class="compliance-table" id="compliance-risk-table">
                                 <thead>
                                     <tr>
-                                        <th>Employee Name</th>
-                                        <th>Risk Score</th>
-                                        <th>Severity</th>
-                                        <th>Violations</th>
-                                        <th>Actions</th>
+                                        <th>Employee ID</th>
+                                        <th>Month</th>
+                                        <th>Gross</th>
+                                        <th>Net</th>
+                                        <th>Generated</th>
                                     </tr>
                                 </thead>
                                 <tbody id="compliance-risk-table-body"></tbody>
@@ -3942,13 +3942,11 @@
                             <table id="payrollHistoryTable">
                                 <thead>
                                     <tr>
+                                        <th>Employee ID</th>
                                         <th>Month</th>
-                                        <th>Year</th>
-                                        <th>Employees</th>
-                                        <th>Total Payout</th>
+                                        <th>Gross</th>
+                                        <th>Net</th>
                                         <th>Generated</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="payrollHistoryBody">
@@ -4602,6 +4600,7 @@
         let savedDays = JSON.parse(localStorage.getItem('savedDays')) || [];
         let payrollRecords = JSON.parse(localStorage.getItem('payrollRecords')) || [];
         let payrollRuns = JSON.parse(localStorage.getItem('payrollRuns')) || [];
+        window.selectedComplianceTarget = null;
         let statutoryPayments = JSON.parse(localStorage.getItem('statutoryPayments')) || {};
         let companySettings = JSON.parse(localStorage.getItem('companySettings')) || {
             companyName: "PayrollPro Resources",
@@ -4736,6 +4735,7 @@
             setupAttendanceEventListeners();
             updatePayrollDates();
             loadCompanySettings();
+            loadPayrollHistory();
 
             // Populate employee dropdowns
             populatePayrollEmployeeDropdown();
@@ -4743,8 +4743,8 @@
 
             const runScanButton = document.getElementById('compliance-run-scan');
             if (runScanButton) {
-                runScanButton.addEventListener('click', () => {
-                    updateComplianceWidgets();
+                runScanButton.addEventListener('click', async () => {
+                    await runComplianceScanForSelected();
                 });
             }
 
@@ -5266,10 +5266,10 @@
                 updateAttendanceSummary();
                 updateAttendanceSaveButtonState();
             } else if (sectionId === 'payroll') {
-                renderPayrollHistory();
+                loadPayrollHistory();
                 updatePayrollSummary();
             } else if (sectionId === 'compliance-manager') {
-                updateComplianceWidgets();
+                loadPayrollHistory();
             } else if (sectionId === 'expense-record-page') {
                 const expenseSection = document.getElementById('expense-record-page');
                 if (expenseSection) {
@@ -5831,7 +5831,7 @@
             }
         }
         
-        function generatePayslipPDF() {
+        async function generatePayslipPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             
@@ -6082,6 +6082,25 @@
             
             // Save the PDF with employee name and month/year
             doc.save(`Payslip_${employeeName.replace(/\s+/g, '_')}_${currentMonth}_${currentYear}.pdf`);
+
+            const payrollMonth = normalizePayrollMonth(`${currentYear}-${String(today.getMonth() + 1).padStart(2, '0')}`);
+            const normalizedEmployee = { id: employeeId, employeeId };
+            const summary = {
+                basic: basicSalary,
+                hra,
+                allowances: specialAllowance + otherAllowances,
+                pf: pfDeduction,
+                esi: esiDeduction,
+                deductions: totalDeductions,
+                gross: totalEarnings,
+                net: netPay,
+                workingDays: Number(totalDays) || 0,
+                presentDays: Number(workingDays) || 0,
+                leaveDays: absentDays + (halfDay * 0.5)
+            };
+
+            await savePayrollSummary(normalizedEmployee, payrollMonth, summary);
+            await loadPayrollHistory();
         }
 
         // Enhanced Populate employee dropdown in payroll section
@@ -7621,53 +7640,279 @@
             return parsed ? parsed.toLocaleDateString('en-GB') : '';
         }
 
+        function normalizePayrollMonth(monthInput) {
+            if (!monthInput) return new Date().toISOString().slice(0, 7);
+            if (/^\d{4}-\d{2}$/.test(monthInput)) return monthInput;
+            const parsed = new Date(monthInput);
+            if (!Number.isNaN(parsed.getTime())) {
+                return parsed.toISOString().slice(0, 7);
+            }
+            return new Date().toISOString().slice(0, 7);
+        }
+
+        function getNumericValue(value) {
+            const numeric = Number(value);
+            return Number.isFinite(numeric) ? numeric : 0;
+        }
+
+        async function savePayrollSummary(employee, month, summary) {
+            if (!ensureFirebaseReady('payroll')) return;
+
+            try {
+                const normalizedEmployeeId = sanitizeId(employee?.id || employee?.employeeId || '');
+                const normalizedMonth = normalizePayrollMonth(month);
+                const { doc, setDoc, serverTimestamp } = window.firestoreFunctions;
+
+                const payload = {
+                    employeeId: normalizedEmployeeId,
+                    month: normalizedMonth,
+                    basic: getNumericValue(summary?.basic),
+                    hra: getNumericValue(summary?.hra),
+                    allowances: getNumericValue(summary?.allowances),
+                    pf: getNumericValue(summary?.pf),
+                    esi: getNumericValue(summary?.esi),
+                    deductions: getNumericValue(summary?.deductions),
+                    gross: getNumericValue(summary?.gross),
+                    net: getNumericValue(summary?.net),
+                    workingDays: getNumericValue(summary?.workingDays),
+                    presentDays: getNumericValue(summary?.presentDays),
+                    leaveDays: getNumericValue(summary?.leaveDays),
+                    generatedAt: typeof serverTimestamp === 'function' ? serverTimestamp() : new Date()
+                };
+
+                console.log('[Payroll] savePayrollSummary payload', payload);
+                await setDoc(doc(window.firebaseDb, 'payrollRecords', `${normalizedEmployeeId}_${normalizedMonth}`), payload, { merge: true });
+            } catch (error) {
+                console.error('[Payroll] savePayrollSummary failed', error);
+                updateSyncStatus('payroll', 'error');
+                setSyncError('payroll', describeSyncError(error));
+            }
+        }
+
+        function setComplianceSelection(row, record) {
+            const previousSelected = document.querySelectorAll('.payroll-history-row.selected-row, .compliance-history-row.selected-row');
+            previousSelected.forEach(element => element.classList.remove('selected-row'));
+            row.classList.add('selected-row');
+            window.selectedComplianceTarget = {
+                employeeId: record.employeeId,
+                month: normalizePayrollMonth(record.month)
+            };
+        }
+
         function renderPayrollHistory() {
-            const tableBody = document.getElementById('payrollHistoryBody');
-            tableBody.innerHTML = '';
-            
-            if (payrollRuns.length === 0) {
-                tableBody.innerHTML = `
+            const payrollTableBody = document.getElementById('payrollHistoryBody');
+            const complianceTableBody = document.getElementById('compliance-risk-table-body');
+            if (payrollTableBody) payrollTableBody.innerHTML = '';
+            if (complianceTableBody) complianceTableBody.innerHTML = '';
+
+            if (payrollRecords.length === 0) {
+                const emptyRow = `
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 20px;">
-                            No payroll runs found
-                        </td>
+                        <td colspan="5" style="text-align: center; padding: 20px;">No payroll records found</td>
                     </tr>
                 `;
+                if (payrollTableBody) payrollTableBody.innerHTML = emptyRow;
+                if (complianceTableBody) complianceTableBody.innerHTML = emptyRow;
                 return;
             }
-            
-            const sortedRuns = payrollRuns.slice().sort((a, b) => {
-                const dateA = getPayrollRunDate(a.generatedAt);
-                const dateB = getPayrollRunDate(b.generatedAt);
-                const timeA = dateA ? dateA.getTime() : 0;
-                const timeB = dateB ? dateB.getTime() : 0;
-                return timeB - timeA;
-            });
-            
-            sortedRuns.forEach(run => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${run.month || '-'}</td>
-                    <td>${run.year || '-'}</td>
-                    <td>${run.employeeCount ?? 0}</td>
-                    <td>${formatCurrency(run.totalPayout ?? 0)}</td>
-                    <td>${formatPayrollRunDate(run.generatedAt) || '-'}</td>
-                    <td><span class="status active">${run.status || 'Completed'}</span></td>
-                    <td>
-                        <div class="table-actions">
-                            <button class="table-action-btn view" onclick="viewPayrollRecord('${run.id}')">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <button class="table-action-btn delete" onclick="deletePayrollRecord('${run.id}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </td>
+
+            payrollRecords.forEach(record => {
+                const cells = `
+                    <td>${record.employeeId || '-'}</td>
+                    <td>${normalizePayrollMonth(record.month)}</td>
+                    <td>${formatCurrency(getNumericValue(record.gross))}</td>
+                    <td>${formatCurrency(getNumericValue(record.net))}</td>
+                    <td>${formatPayrollRunDate(record.generatedAt) || '-'}</td>
                 `;
-                tableBody.appendChild(row);
+
+                const payrollRow = document.createElement('tr');
+                payrollRow.className = 'payroll-history-row';
+                payrollRow.style.cursor = 'pointer';
+                payrollRow.innerHTML = cells;
+                payrollRow.addEventListener('click', () => setComplianceSelection(payrollRow, record));
+                if (payrollTableBody) payrollTableBody.appendChild(payrollRow);
+
+                const complianceRow = document.createElement('tr');
+                complianceRow.className = 'compliance-history-row';
+                complianceRow.style.cursor = 'pointer';
+                complianceRow.innerHTML = cells;
+                complianceRow.addEventListener('click', () => setComplianceSelection(complianceRow, record));
+                if (complianceTableBody) complianceTableBody.appendChild(complianceRow);
             });
         }
-        
+
+        async function loadPayrollHistory() {
+            if (!ensureFirebaseReady('payroll')) {
+                renderPayrollHistory();
+                return;
+            }
+
+            try {
+                const { collection, query, orderBy, getDocs } = window.firestoreFunctions;
+                const payrollQuery = query(collection(window.firebaseDb, 'payrollRecords'), orderBy('generatedAt', 'desc'));
+                const snapshot = await getDocs(payrollQuery);
+                payrollRecords = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+                localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
+                renderPayrollHistory();
+            } catch (error) {
+                console.error('[Payroll] loadPayrollHistory failed', error);
+                updateSyncStatus('payroll', 'error');
+                setSyncError('payroll', describeSyncError(error));
+                renderPayrollHistory();
+            }
+        }
+
+        function runPayrollRules(employeeId, payroll) {
+            const violations = [];
+            const gross = getNumericValue(payroll?.gross);
+            const deductions = getNumericValue(payroll?.deductions);
+            const net = getNumericValue(payroll?.net);
+            const pf = getNumericValue(payroll?.pf);
+            const workingDays = getNumericValue(payroll?.workingDays);
+            const presentDays = getNumericValue(payroll?.presentDays);
+
+            if (net !== gross - deductions) {
+                violations.push({
+                    ruleId: 'NET_MISMATCH',
+                    employeeId,
+                    severity: 'high',
+                    description: 'Net pay does not match gross minus deductions.',
+                    expected: gross - deductions,
+                    actual: net,
+                    impact: 'Incorrect salary payout risk.'
+                });
+            }
+
+            if (pf <= 0) {
+                violations.push({
+                    ruleId: 'PF_MISSING',
+                    employeeId,
+                    severity: 'medium',
+                    description: 'PF deduction is missing or zero.',
+                    expected: '> 0',
+                    actual: pf,
+                    impact: 'PF non-compliance risk.'
+                });
+            }
+
+            if (presentDays > workingDays) {
+                violations.push({
+                    ruleId: 'ATTENDANCE_INVALID',
+                    employeeId,
+                    severity: 'medium',
+                    description: 'Present days cannot exceed working days.',
+                    expected: `<= ${workingDays}`,
+                    actual: presentDays,
+                    impact: 'Attendance/payroll inconsistency risk.'
+                });
+            }
+
+            return violations;
+        }
+
+        async function runComplianceScanForSelected() {
+            const target = window.selectedComplianceTarget;
+            const cardContainer = document.getElementById('compliance-risk-cards');
+            const nowLabel = new Date().toLocaleString();
+
+            if (!ensureFirebaseReady('payroll')) {
+                renderComplianceViolations([{ 
+                    ruleId: 'PAYROLL_FETCH_FAILED',
+                    employeeId: target?.employeeId || 'N/A',
+                    severity: 'high',
+                    description: 'Failed to fetch payroll summary from Firestore.',
+                    expected: 'firebase_ready',
+                    actual: 'firebase_unavailable',
+                    impact: 'Compliance scan unavailable until Firebase is ready.'
+                }], nowLabel);
+                return;
+            }
+
+            if (!target?.employeeId || !target?.month) {
+                if (cardContainer) {
+                    cardContainer.innerHTML = '<div class="anomaly-empty">Select an employee/month row from Payroll History first.</div>';
+                }
+                return;
+            }
+
+            const { doc, getDoc } = window.firestoreFunctions;
+
+            try {
+                const recordRef = doc(window.firebaseDb, 'payrollRecords', `${target.employeeId}_${normalizePayrollMonth(target.month)}`);
+                const snapshot = await getDoc(recordRef);
+
+                if (!snapshot.exists()) {
+                    const missingViolation = {
+                        ruleId: 'PAYROLL_MISSING',
+                        employeeId: target.employeeId,
+                        severity: 'high',
+                        description: 'Payroll not generated for this employee for this month',
+                        expected: target.month,
+                        actual: 'missing',
+                        impact: 'Cannot run compliance checks without payroll summary data.'
+                    };
+                    renderComplianceViolations([missingViolation], nowLabel);
+                    return;
+                }
+
+                const payroll = snapshot.data();
+                console.log('[Compliance] runComplianceScanForSelected fetched payroll', payroll);
+                const violations = runPayrollRules(target.employeeId, payroll);
+                renderComplianceViolations(violations, nowLabel);
+            } catch (error) {
+                console.error('[Compliance] runComplianceScanForSelected failed', error);
+                const fetchFailedViolation = {
+                    ruleId: 'PAYROLL_FETCH_FAILED',
+                    employeeId: target.employeeId,
+                    severity: 'high',
+                    description: 'Failed to fetch payroll summary from Firestore.',
+                    expected: `${target.employeeId}_${target.month}`,
+                    actual: 'fetch_error',
+                    impact: 'Compliance scan unavailable until data fetch succeeds.'
+                };
+                renderComplianceViolations([fetchFailedViolation], nowLabel);
+            }
+        }
+
+        function renderComplianceViolations(violations, scanTimestamp) {
+            const cardContainer = document.getElementById('compliance-risk-cards');
+            const summaryHigh = document.getElementById('compliance-summary-high');
+            const summaryMedium = document.getElementById('compliance-summary-medium');
+            const summaryLow = document.getElementById('compliance-summary-low');
+            const summaryLastScan = document.getElementById('compliance-summary-last-scan');
+            const lastScanElement = document.getElementById('compliance-last-scan');
+
+            const high = violations.filter(v => (v.severity || '').toLowerCase() === 'high').length;
+            const medium = violations.filter(v => (v.severity || '').toLowerCase() === 'medium').length;
+            const low = violations.filter(v => (v.severity || '').toLowerCase() === 'low').length;
+
+            if (summaryHigh) summaryHigh.textContent = high;
+            if (summaryMedium) summaryMedium.textContent = medium;
+            if (summaryLow) summaryLow.textContent = low;
+            if (summaryLastScan) summaryLastScan.textContent = scanTimestamp;
+            if (lastScanElement) lastScanElement.textContent = scanTimestamp;
+
+            if (!cardContainer) return;
+
+            if (!violations.length) {
+                cardContainer.innerHTML = '<div class="anomaly-empty">No compliance risks detected for selected payroll.</div>';
+                return;
+            }
+
+            cardContainer.innerHTML = violations.map(violation => `
+                <div class="risk-card">
+                    <div class="risk-card__header">
+                        <span class="risk-label ${(violation.severity || 'low').toLowerCase()}">${(violation.severity || 'low').toUpperCase()} RISK</span>
+                        <span class="chart-card__subtitle">${violation.employeeId}</span>
+                    </div>
+                    <div class="insight-item__title">${violation.ruleId}</div>
+                    <div class="dashboard-tile__meta">${violation.description}</div>
+                    <div class="dashboard-tile__meta">Expected: ${violation.expected} · Actual: ${violation.actual}</div>
+                    <div class="dashboard-tile__meta">Impact: ${violation.impact}</div>
+                </div>
+            `).join('');
+        }
+
         async function savePayrollRunSnapshot({ period, paymentDate, records }) {
             if (!ensureFirebaseReady('payroll')) return;
 
@@ -7789,8 +8034,8 @@ Employees: ${employeeSummary}`);
             }
         }
         
-        function refreshPayrollHistory() {
-            renderPayrollHistory();
+        async function refreshPayrollHistory() {
+            await loadPayrollHistory();
         }
         
         function updatePayrollSummary() {
@@ -8643,8 +8888,6 @@ Employees: ${employeeSummary}`);
     </script>
 </body>
 </html>
-
-
 
 
 
