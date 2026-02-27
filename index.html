@@ -7822,44 +7822,51 @@
         }
 
         async function runComplianceScanAll() {
-            if (!ensureFirebaseReady('payroll')) {
-                alert('Compliance scan failed: Firebase is not ready.');
-                renderComplianceResults([]);
+            console.log('Running compliance scan for ALL payrolls');
+
+            if (!window.firebaseDb) {
+                alert('Firebase not ready.');
                 return;
             }
 
-            try {
-                const { collection, query, getDocs } = window.firestoreFunctions;
-                const snapshot = await getDocs(query(collection(window.firebaseDb, 'payrollRecords')));
+            const { getDocs, collection, query } = window.firestoreFunctions;
 
-                if (snapshot.empty) {
-                    alert('No payroll records found to scan.');
+            try {
+                const q = query(collection(window.firebaseDb, 'payrollRecords'));
+                const snap = await getDocs(q);
+
+                console.log('Payroll docs found:', snap.size);
+
+                if (snap.empty) {
+                    alert('No payroll records found.');
                     renderComplianceResults([]);
                     return;
                 }
 
-                const allViolations = [];
+                let violations = [];
 
-                snapshot.forEach((docSnap) => {
-                    const data = docSnap.data() || {};
-                    const employeeId = Number(data.employeeId) || data.employeeId || docSnap.id;
-                    const payroll = {
-                        employeeId,
-                        month: Number(data.month) || data.month,
-                        gross: Number(data.gross),
-                        net: Number(data.net),
-                        deductions: Number(data.deductions),
-                        pf: Number(data.pf),
-                        workingDays: Number(data.workingDays),
-                        presentDays: Number(data.presentDays)
+                for (const docSnap of snap.docs) {
+                    const payroll = docSnap.data();
+                    if (payroll.type === 'run') continue; // ignore aggregate docs
+
+                    const employeeId = payroll.employeeId;
+
+                    const normalized = {
+                        gross: Number(payroll.gross || 0),
+                        deductions: Number(payroll.deductions || 0),
+                        net: Number(payroll.net || 0),
+                        pf: Number(payroll.pf || 0),
+                        workingDays: Number(payroll.workingDays || 0),
+                        presentDays: Number(payroll.presentDays || 0),
                     };
-                    const violations = runPayrollRules(employeeId, payroll);
-                    allViolations.push(...violations);
-                });
 
-                renderComplianceResults(allViolations);
+                    violations.push(...runPayrollRules(employeeId, normalized));
+                }
+
+                renderComplianceResults(violations);
+
             } catch (err) {
-                console.error('[Compliance] runComplianceScanAll failed', err);
+                console.error('Compliance scan failed:', err);
                 alert('Compliance scan failed: ' + err.message);
             }
         }
@@ -8864,24 +8871,8 @@ Employees: ${employeeSummary}`);
     </script>
 
     <script src="./complianceRulesIndia.js"></script>
-    <script type="module" src="./complianceRiskEngine.js"></script>
     <script src="./complianceRiskUI.js"></script>
     <script src="./payrollAnomalyDetector.js"></script>
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        if (typeof runComplianceScanAll === "function") {
-          window.runComplianceScan = runComplianceScanAll;
-        }
-
-        if (typeof window.runComplianceScan === "function") {
-          window.runComplianceScan().catch((error) => {
-            console.error("[ComplianceEngine] Initial scan failed:", error);
-          });
-        } else {
-          console.warn("[ComplianceEngine] Compliance scan is not available yet.");
-        }
-      });
-    </script>
 </body>
 </html>
 

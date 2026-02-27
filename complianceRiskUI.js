@@ -180,23 +180,6 @@
             row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
         });
 
-        const runButton = document.getElementById('compliance-run-scan');
-        if (runButton) {
-            runButton.onclick = async () => {
-                if (typeof window.runComplianceScan !== 'function') return;
-                runButton.disabled = true;
-                runButton.textContent = 'Running Compliance Scan...';
-                try {
-                    await window.runComplianceScan(state.selectedMonth || 'manual');
-                    await renderMonth(state.selectedMonth);
-                } catch (error) {
-                    console.error('[ComplianceUI] Failed to run compliance scan.', error);
-                } finally {
-                    runButton.disabled = false;
-                    runButton.innerHTML = '<i class="fas fa-wave-square"></i> Run Compliance Scan';
-                }
-            };
-        }
     };
 
     const init = async () => {
