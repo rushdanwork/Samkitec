@@ -7862,7 +7862,7 @@
 
                     violations.push(...runPayrollRules(employeeId, normalized));
                 }
-
+                console.log("Violations:", violations);
                 renderComplianceResults(violations);
 
             } catch (err) {
@@ -8875,6 +8875,7 @@ Employees: ${employeeSummary}`);
     <script src="./payrollAnomalyDetector.js"></script>
 </body>
 </html>
+
 
 
 
