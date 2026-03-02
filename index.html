@@ -7847,6 +7847,7 @@
 
                 for (const docSnap of snap.docs) {
                     const payroll = docSnap.data();
+                    console.log("Payroll record:", payroll);
                     if (payroll.type === 'run') continue; // ignore aggregate docs
 
                     const employeeId = payroll.employeeId;
@@ -8875,6 +8876,7 @@ Employees: ${employeeSummary}`);
     <script src="./payrollAnomalyDetector.js"></script>
 </body>
 </html>
+
 
 
 
