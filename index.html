@@ -7822,9 +7822,10 @@
         }
 
         async function runComplianceScanAll() {
-            console.log('Running compliance scan for ALL payrolls');
+            console.log('[COMPLIANCE DEBUG] === Starting FULL compliance scan ===');
 
             if (!window.firebaseDb) {
+                console.error('[COMPLIANCE DEBUG] Firebase DB not available');
                 alert('Firebase not ready.');
                 return;
             }
@@ -7835,10 +7836,10 @@
                 const q = query(collection(window.firebaseDb, 'payrollRecords'));
                 const snap = await getDocs(q);
 
-                console.log('Payroll docs found:', snap.size);
+                console.log('[COMPLIANCE DEBUG] Payroll docs found:', snap.size);
 
                 if (snap.empty) {
-                    alert('No payroll records found.');
+                    console.warn('[COMPLIANCE DEBUG] No payroll documents found.');
                     renderComplianceResults([]);
                     return;
                 }
@@ -7847,10 +7848,13 @@
 
                 for (const docSnap of snap.docs) {
                     const payroll = docSnap.data();
-                    console.log("Payroll record:", payroll);
-                    if (payroll.type === 'run') continue; // ignore aggregate docs
+                    if (payroll.type === 'run') {
+                        console.log('[COMPLIANCE DEBUG] Skipping run snapshot:', docSnap.id);
+                        continue;
+                    }
 
-                    const employeeId = payroll.employeeId;
+                    console.log('[COMPLIANCE DEBUG] Evaluating employee:', payroll.employeeId);
+                    console.log('[COMPLIANCE DEBUG] Raw payroll data:', payroll);
 
                     const normalized = {
                         gross: Number(payroll.gross || 0),
@@ -7861,13 +7865,29 @@
                         presentDays: Number(payroll.presentDays || 0),
                     };
 
-                    violations.push(...runPayrollRules(employeeId, normalized));
+                    console.log('[COMPLIANCE DEBUG] Normalized payroll:', normalized);
+
+                    const ruleResult = runPayrollRules(payroll.employeeId, normalized);
+
+                    console.log('[COMPLIANCE DEBUG] Rule result:', ruleResult);
+
+                    if (Array.isArray(ruleResult) && ruleResult.length > 0) {
+                        violations.push(...ruleResult);
+                    }
                 }
-                console.log("Violations:", violations);
+
+                console.log('[COMPLIANCE DEBUG] Final violations array:', violations);
+
+                if (!violations.length) {
+                    console.warn('[COMPLIANCE DEBUG] No violations detected after full scan.');
+                }
+
                 renderComplianceResults(violations);
 
+                console.log('[COMPLIANCE DEBUG] === Compliance scan complete ===');
+
             } catch (err) {
-                console.error('Compliance scan failed:', err);
+                console.error('[COMPLIANCE DEBUG] Compliance scan failed:', err);
                 alert('Compliance scan failed: ' + err.message);
             }
         }
