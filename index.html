@@ -7818,6 +7818,51 @@
         }
 
         function renderComplianceResults(violations) {
+            const complianceTableBody = document.getElementById('compliance-risk-table-body');
+
+            if (complianceTableBody) {
+                complianceTableBody.innerHTML = '';
+
+                if (!violations.length) {
+                    complianceTableBody.innerHTML = `
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 20px;">No compliance violations found for this month.</td>
+                        </tr>
+                    `;
+                } else {
+                    const violationsByEmployee = violations.reduce((acc, violation) => {
+                        const key = violation.employeeId || 'Unknown';
+                        if (!acc[key]) acc[key] = [];
+                        acc[key].push(violation);
+                        return acc;
+                    }, {});
+
+                    Object.entries(violationsByEmployee).forEach(([employeeId, employeeViolations]) => {
+                        const matchingRecords = payrollRecords
+                            .filter(record => (record.employeeId || '') === employeeId)
+                            .sort((a, b) => {
+                                const timeA = new Date(a.generatedAt || a.createdAt || 0).getTime();
+                                const timeB = new Date(b.generatedAt || b.createdAt || 0).getTime();
+                                return timeB - timeA;
+                            });
+
+                        const sourceRecord = matchingRecords[0] || {};
+                        const sourceViolation = employeeViolations[0] || {};
+
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${employeeId}</td>
+                            <td>${normalizePayrollMonth(sourceRecord.month || sourceViolation.month || '-')}</td>
+                            <td>${formatCurrency(getNumericValue(sourceRecord.gross || sourceViolation.gross))}</td>
+                            <td>${formatCurrency(getNumericValue(sourceRecord.net || sourceViolation.net))}</td>
+                            <td>${formatPayrollRunDate(sourceRecord.generatedAt || sourceViolation.generatedAt) || '-'}</td>
+                        `;
+
+                        complianceTableBody.appendChild(row);
+                    });
+                }
+            }
+
             renderComplianceViolations(violations, new Date().toLocaleString());
         }
 
