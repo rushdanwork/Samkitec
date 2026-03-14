@@ -5102,7 +5102,7 @@
                 const upsertPromises = payrollRecords.map(record => {
                     const recordId = record.id || generateId();
                     const docRef = doc(window.firebaseDb, PAYROLL_COLLECTION, recordId);
-                    return setDoc(docRef, { ...record, id: recordId, type: 'record' });
+                    return setDoc(docRef, { ...record, id: recordId, type: record.type || 'record' });
                 });
 
                 await Promise.all(upsertPromises);
@@ -7229,7 +7229,7 @@
             payrollRecords.forEach(record => {
                 if (!record?.period) return;
                 const monthKey = record.period.slice(0, 7);
-                totalsByMonth[monthKey] = (totalsByMonth[monthKey] || 0) + Number(record.netSalary || record.net || 0);
+                totalsByMonth[monthKey] = (totalsByMonth[monthKey] || 0) + Number(record.net || 0);
             });
 
             const months = [];
@@ -7682,6 +7682,7 @@
                     gross: getNumericValue(summary?.gross),
                     net: getNumericValue(summary?.net),
                     workingDays: getNumericValue(summary?.workingDays),
+                    type: 'summary',
                     presentDays: getNumericValue(summary?.presentDays),
                     leaveDays: getNumericValue(summary?.leaveDays),
                     generatedAt: typeof serverTimestamp === 'function' ? serverTimestamp() : new Date()
@@ -7987,7 +7988,7 @@
                 const selectedMonth = payrollDate.toLocaleString('default', { month: 'long' });
                 const selectedYear = payrollDate.getFullYear();
                 const employeeCount = records.length;
-                const totalPayout = records.reduce((sum, record) => sum + (Number(record.netSalary) || 0), 0);
+                const totalPayout = records.reduce((sum, record) => sum + (Number(record.net) || 0), 0);
 
                 console.log('[Payroll] Run write start.', { month: selectedMonth, year: selectedYear, employeeCount });
                 const docRef = await addDoc(collection(window.firebaseDb, PAYROLL_COLLECTION), {
@@ -8015,23 +8016,35 @@
             const period = document.getElementById('payPeriodSelect').options[document.getElementById('payPeriodSelect').selectedIndex].text;
             const paymentDate = document.getElementById('paymentDate').value;
             const paymentMethod = document.getElementById('paymentMethod').value;
+            const month = normalizePayrollMonth(paymentDate);
             
             const basicSalary = parseFloat(document.getElementById('basicSalary').value) || 0;
-            const allowances = parseFloat(document.getElementById('displayTotalEarnings').textContent.replace(/[₹,]/g, '')) || 0;
+            const totalEarnings = parseFloat(document.getElementById('displayTotalEarnings').textContent.replace(/[₹,]/g, '')) || 0;
+            const allowances = Math.max(0, totalEarnings - basicSalary);
+            const gross = basicSalary + allowances;
             const deductions = parseFloat(document.getElementById('displayTotalDeductions').textContent.replace(/[₹,]/g, '')) || 0;
-            const netSalary = parseFloat(document.getElementById('displayNet').textContent.replace(/[₹,]/g, '')) || 0;
+            const net = parseFloat(document.getElementById('displayNet').textContent.replace(/[₹,]/g, '')) || 0;
+            const pf = parseFloat(document.getElementById('pf').value) || 0;
+            const workingDays = parseInt(document.getElementById('totalDays').value, 10) || companySettings.defaultWorkingDays;
+            const presentDays = parseInt(document.getElementById('workingDays').value, 10) || companySettings.defaultWorkingDays;
             
             const payrollRecord = {
                 id: generateId(),
                 employeeId,
                 employeeName,
+                month,
                 period,
                 paymentDate,
                 paymentMethod,
                 basicSalary,
                 allowances,
+                gross,
+                net,
                 deductions,
-                netSalary,
+                pf,
+                workingDays,
+                presentDays,
+                type: 'summary',
                 createdAt: new Date().toISOString()
             };
             
@@ -8061,7 +8074,7 @@ Period: ${record.period}
 Basic Salary: ${formatCurrency(record.basicSalary)}
 Allowances: ${formatCurrency(record.allowances)}
 Deductions: ${formatCurrency(record.deductions)}
-Net Salary: ${formatCurrency(record.netSalary)}
+Net Salary: ${formatCurrency(record.net || 0)}
 Payment Date: ${record.paymentDate}
 Payment Method: ${record.paymentMethod}`);
             }
@@ -8213,14 +8226,14 @@ Employees: ${employeeSummary}`);
             const reportData = monthRecords.map(record => ({
                 category: `${record.employeeName} (${record.employeeId})`,
                 count: '',
-                details: `Basic: ${formatCurrency(record.basicSalary)} | Allowances: ${formatCurrency(record.allowances)} | Deductions: ${formatCurrency(record.deductions)} | Net: ${formatCurrency(record.netSalary)}`
+                details: `Basic: ${formatCurrency(record.basicSalary || 0)} | Allowances: ${formatCurrency(record.allowances || 0)} | Deductions: ${formatCurrency(record.deductions || 0)} | Net: ${formatCurrency(record.net || 0)}`
             }));
             
             // Add summary
             const totalBasic = monthRecords.reduce((sum, record) => sum + record.basicSalary, 0);
             const totalAllowances = monthRecords.reduce((sum, record) => sum + record.allowances, 0);
             const totalDeductions = monthRecords.reduce((sum, record) => sum + record.deductions, 0);
-            const totalNet = monthRecords.reduce((sum, record) => sum + record.netSalary, 0);
+            const totalNet = monthRecords.reduce((sum, record) => sum + (record.net || 0), 0);
             
             reportData.push({
                 category: 'TOTAL',
@@ -8333,7 +8346,7 @@ Employees: ${employeeSummary}`);
                     record.basicSalary,
                     record.allowances,
                     record.deductions,
-                    record.netSalary,
+                    record.net || 0,
                     record.paymentDate,
                     record.paymentMethod
                 ]);
@@ -8343,7 +8356,7 @@ Employees: ${employeeSummary}`);
             const totalBasic = monthRecords.reduce((sum, record) => sum + record.basicSalary, 0);
             const totalAllowances = monthRecords.reduce((sum, record) => sum + record.allowances, 0);
             const totalDeductions = monthRecords.reduce((sum, record) => sum + record.deductions, 0);
-            const totalNet = monthRecords.reduce((sum, record) => sum + record.netSalary, 0);
+            const totalNet = monthRecords.reduce((sum, record) => sum + (record.net || 0), 0);
             
             data.push([]);
             data.push(['TOTAL', '', '', totalBasic, totalAllowances, totalDeductions, totalNet, '', '']);
