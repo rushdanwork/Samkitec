@@ -4851,7 +4851,9 @@
             setupAttendanceEventListeners();
             updatePayrollDates();
             loadCompanySettings();
-            loadPayrollHistory();
+            if (window.ComplianceService?.refresh) {
+                window.ComplianceService.refresh();
+            }
 
             // Populate employee dropdowns
             populatePayrollEmployeeDropdown();
@@ -5379,10 +5381,14 @@
                 updateAttendanceSummary();
                 updateAttendanceSaveButtonState();
             } else if (sectionId === 'payroll') {
-                loadPayrollHistory();
+                if (window.ComplianceService?.refresh) {
+                    window.ComplianceService.refresh();
+                }
                 updatePayrollSummary();
             } else if (sectionId === 'compliance-manager') {
-                loadPayrollHistory();
+                if (window.ComplianceService?.refresh) {
+                    window.ComplianceService.refresh();
+                }
                 if (window.ComplianceService && typeof window.ComplianceService.refreshMonthOptions === 'function') {
                     window.ComplianceService.refreshMonthOptions();
                 }
@@ -6639,7 +6645,6 @@
             document.getElementById('halfday-count').textContent = halfday;
             document.getElementById('total-count').textContent = employees.length;
 
-            renderPayrollAnomalies();
         }
         
         // Enhanced Update attendance save button state
@@ -7394,7 +7399,6 @@
 
         function startNotificationsListener() {
             if (!isFirebaseAvailable()) {
-                renderPayrollAnomalies();
                 markInitialSnapshot('notifications');
                 return Promise.resolve(false);
             }
@@ -9147,6 +9151,17 @@ Employees: ${employeeSummary}`);
             `;
             
             document.getElementById('attendance-report-container').innerHTML = analyticsHtml;
+        }
+
+        function loadPayrollHistory() {
+            console.warn("Legacy loadPayrollHistory() called — redirected to ComplianceService.");
+            if (window.ComplianceService?.refresh) {
+                window.ComplianceService.refresh();
+            }
+        }
+
+        function renderPayrollAnomalies() {
+            console.warn("Legacy renderPayrollAnomalies() called — no-op.");
         }
 
         // Make functions available globally
