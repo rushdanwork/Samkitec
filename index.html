@@ -1707,6 +1707,84 @@
             flex-wrap: wrap;
         }
 
+        .compliance-topbar__actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .compliance-filter-select {
+            min-width: 180px;
+            background: #fff;
+        }
+
+        .compliance-banner {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1d4ed8;
+            border-radius: 14px;
+            padding: 12px 16px;
+            font-weight: 600;
+        }
+
+        .compliance-banner[data-tone="running"] {
+            background: #fef3c7;
+            border-color: #fcd34d;
+            color: #92400e;
+        }
+
+        .compliance-banner[data-tone="success"] {
+            background: #dcfce7;
+            border-color: #86efac;
+            color: #166534;
+        }
+
+        .compliance-banner[data-tone="error"] {
+            background: #fee2e2;
+            border-color: #fca5a5;
+            color: #b91c1c;
+        }
+
+        .compliance-banner[data-tone="empty"] {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #475569;
+        }
+
+        .compliance-progress {
+            background: var(--card-color);
+            border-radius: 16px;
+            padding: 16px 18px;
+            box-shadow: var(--card-shadow);
+            display: grid;
+            gap: 10px;
+        }
+
+        .compliance-progress__meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .compliance-progress__bar {
+            width: 100%;
+            height: 10px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            overflow: hidden;
+        }
+
+        .compliance-progress__fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #2563eb 0%, #7c3aed 100%);
+            transition: width 0.25s ease;
+        }
+
         .compliance-topbar__stat {
             display: flex;
             flex-direction: column;
@@ -2995,21 +3073,42 @@
                     </div>
                 </div>
 
-                <div class="compliance-page">
+                <div class="compliance-page" id="compliance-dashboard-root">
                     <div class="compliance-topbar">
                         <div class="compliance-topbar__stats">
                             <div class="compliance-topbar__stat">
                                 <span>Compliance Score</span>
-                                <strong id="compliance-score-value">94</strong>
+                                <strong id="compliance-score-value">--</strong>
                             </div>
                             <div class="compliance-topbar__stat">
                                 <span>Last Scan</span>
                                 <strong id="compliance-last-scan">--</strong>
                             </div>
+                            <div class="compliance-topbar__stat">
+                                <span>Scan Status</span>
+                                <strong id="compliance-scan-status">Idle</strong>
+                            </div>
                         </div>
-                        <button class="btn btn-primary" id="compliance-run-scan">
-                            <i class="fas fa-wave-square"></i> Run Compliance Scan
-                        </button>
+                        <div class="compliance-topbar__actions">
+                            <select id="compliance-month-filter" class="form-control compliance-filter-select">
+                                <option value="">All Months</option>
+                            </select>
+                            <button class="btn btn-primary" id="compliance-run-scan">
+                                <i class="fas fa-wave-square"></i> Scan All Payrolls
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="compliance-banner" id="compliance-status-banner">Ready to scan payroll summaries.</div>
+
+                    <div class="compliance-progress" aria-live="polite">
+                        <div class="compliance-progress__meta">
+                            <span id="compliance-progress-label">0 scanned out of 0</span>
+                            <span id="compliance-progress-percent">0%</span>
+                        </div>
+                        <div class="compliance-progress__bar">
+                            <div class="compliance-progress__fill" id="compliance-progress-fill"></div>
+                        </div>
                     </div>
 
                     <div class="compliance-summary" id="compliance-risk-summary">
@@ -3022,31 +3121,31 @@
                     <div class="compliance-category-grid" id="compliance-category-grid">
                         <div class="compliance-category">
                             <div class="dashboard-tile__header">
-                                TDS Risks
-                                <span class="insight-badge medium" id="tds-risk-count">0</span>
+                                High Severity
+                                <span class="insight-badge high" id="compliance-high-count">0</span>
                             </div>
-                            <div class="dashboard-tile__meta">Regime, slab, and projection mismatches.</div>
+                            <div class="dashboard-tile__meta">Immediate remediation required for statutory payroll breaches.</div>
                         </div>
                         <div class="compliance-category">
                             <div class="dashboard-tile__header">
-                                PF Risks
-                                <span class="insight-badge high" id="pf-risk-count">0</span>
+                                Medium Severity
+                                <span class="insight-badge medium" id="compliance-medium-count">0</span>
                             </div>
-                            <div class="dashboard-tile__meta">Wage caps, missing UAN, under-deduction.</div>
+                            <div class="dashboard-tile__meta">Correct payroll exceptions before next filing cycle.</div>
                         </div>
                         <div class="compliance-category">
                             <div class="dashboard-tile__header">
-                                ESI Risks
-                                <span class="insight-badge medium" id="esi-risk-count">0</span>
+                                Low Severity
+                                <span class="insight-badge low" id="compliance-low-count">0</span>
                             </div>
-                            <div class="dashboard-tile__meta">Eligibility threshold and exit rules.</div>
+                            <div class="dashboard-tile__meta">Operational anomalies with lower statutory impact.</div>
                         </div>
                         <div class="compliance-category">
                             <div class="dashboard-tile__header">
-                                PT Risks
-                                <span class="insight-badge low" id="pt-risk-count">0</span>
+                                Employees at Risk
+                                <span class="insight-badge medium" id="compliance-employee-risk-count">0</span>
                             </div>
-                            <div class="dashboard-tile__meta">State slab & month exceptions.</div>
+                            <div class="dashboard-tile__meta">Employees with one or more active compliance violations.</div>
                         </div>
                     </div>
 
@@ -3054,7 +3153,7 @@
                         <div class="chart-card__header">
                             <div>
                                 <div class="chart-card__title">Risk Cards</div>
-                                <div class="chart-card__subtitle">Expandable categories with actionable controls</div>
+                                <div class="chart-card__subtitle">Expandable employee risk summaries with impact and recommendations</div>
                             </div>
                         </div>
                         <div id="compliance-risk-cards" class="insights-list">
@@ -3066,7 +3165,7 @@
                         <div class="chart-card__header">
                             <div>
                                 <div class="chart-card__title">Employee Risk Table</div>
-                                <div class="chart-card__subtitle">Review risk scores, levels, and drill into details</div>
+                                <div class="chart-card__subtitle">Real-time payroll compliance posture by employee and month</div>
                             </div>
                         </div>
                         <div class="table-responsive">
@@ -3077,12 +3176,27 @@
                                         <th>Month</th>
                                         <th>Gross</th>
                                         <th>Net</th>
-                                        <th>Generated</th>
+                                        <th>Risk Score</th>
+                                        <th>Risk Level</th>
+                                        <th>Violations</th>
                                     </tr>
                                 </thead>
                                 <tbody id="compliance-risk-table-body"></tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+
+                <div class="compliance-modal" id="compliance-detail-modal" aria-hidden="true">
+                    <div class="compliance-modal__content">
+                        <div class="compliance-modal__header">
+                            <div>
+                                <div class="chart-card__title">Compliance Violations</div>
+                                <div class="chart-card__subtitle" id="compliance-modal-subtitle">Employee violation details</div>
+                            </div>
+                            <button class="compliance-modal__close" type="button" id="compliance-modal-close" aria-label="Close compliance details">&times;</button>
+                        </div>
+                        <div id="compliance-modal-body"></div>
                     </div>
                 </div>
             </div>
@@ -4743,16 +4857,8 @@
             populatePayrollEmployeeDropdown();
             populateReportEmployeeDropdown();
 
-            const btn = document.getElementById('compliance-run-scan');
-            if (btn) {
-                btn.addEventListener('click', async () => {
-                    console.log('Run Compliance Scan clicked');
-                    if (typeof window.runComplianceScan === 'function') {
-                        await window.runComplianceScan();
-                    } else {
-                        alert('Compliance engine not loaded yet.');
-                    }
-                });
+            if (window.ComplianceService && typeof window.ComplianceService.init === 'function') {
+                window.ComplianceService.init();
             }
 
             // Set today's date as default for attendance
@@ -5277,6 +5383,9 @@
                 updatePayrollSummary();
             } else if (sectionId === 'compliance-manager') {
                 loadPayrollHistory();
+                if (window.ComplianceService && typeof window.ComplianceService.refreshMonthOptions === 'function') {
+                    window.ComplianceService.refreshMonthOptions();
+                }
             } else if (sectionId === 'expense-record-page') {
                 const expenseSection = document.getElementById('expense-record-page');
                 if (expenseSection) {
@@ -7193,31 +7302,24 @@
             const statusElement = document.getElementById('dashboard-compliance-status');
             const riskCountElement = document.getElementById('tile-compliance-risks');
             const riskMetaElement = document.getElementById('tile-compliance-meta');
+            const dashboardState = window.ComplianceService && typeof window.ComplianceService.getDashboardState === 'function'
+                ? window.ComplianceService.getDashboardState()
+                : null;
 
-            if (typeof window.runComplianceRiskEngine !== 'function') return;
-            const monthValue = new Date().toISOString().slice(0, 7);
-            const result = window.runComplianceRiskEngine({
-                month: monthValue,
-                employees: window.employees || [],
-                attendance: window.attendanceRecords || {},
-                payroll: window.payrollRecords || [],
-                statutoryPayments: window.statutoryPayments || {}
-            });
+            const complianceScore = dashboardState?.summary?.complianceScore ?? 100;
+            const highPriorityCount = dashboardState?.summary?.severityCounts?.high ?? 0;
+            const totalEmployeesAtRisk = dashboardState?.summary?.employeesAtRisk ?? 0;
+            const systemRiskLevel = dashboardState?.summary?.systemRiskLevel || 'LOW';
 
-            const totalScore = result?.totalScore ?? 0;
-            const level = result?.level || 'Low';
-            const events = result?.events || [];
-
-            if (scoreElement) scoreElement.textContent = `${totalScore}/100`;
-            if (statusElement) statusElement.textContent = `${totalScore}/100 ${level === 'Low' ? '🟢' : level === 'Medium' ? '🟡' : '🔴'}`;
-            if (riskCountElement) riskCountElement.textContent = events.length;
+            if (scoreElement) scoreElement.textContent = `${complianceScore}/100`;
+            if (statusElement) statusElement.textContent = `${complianceScore}/100 ${systemRiskLevel === 'LOW' ? '🟢' : systemRiskLevel === 'MEDIUM' ? '🟡' : systemRiskLevel === 'HIGH' ? '🟠' : '🔴'}`;
+            if (riskCountElement) riskCountElement.textContent = totalEmployeesAtRisk;
 
             if (riskMetaElement) {
-                const criticalCount = events.filter(evt => evt.severity === 'Critical' || evt.severity === 'High').length;
-                riskMetaElement.textContent = criticalCount > 0 ? `${criticalCount} high-priority risks` : 'No critical alerts';
+                riskMetaElement.textContent = highPriorityCount > 0
+                    ? `${highPriorityCount} high-priority risks`
+                    : 'No critical alerts';
             }
-
-            renderComplianceManager(result);
         }
 
         function updateSalaryTrendChart() {
@@ -7409,576 +7511,729 @@
             await deleteDoc(doc(window.firebaseDb, 'notifications', id));
         }
 
-        function renderComplianceManager(result) {
-            const scoreElement = document.getElementById('compliance-score-value');
-            const lastScanElement = document.getElementById('compliance-last-scan');
-            const tdsCount = document.getElementById('tds-risk-count');
-            const pfCount = document.getElementById('pf-risk-count');
-            const esiCount = document.getElementById('esi-risk-count');
-            const ptCount = document.getElementById('pt-risk-count');
-            const cardContainer = document.getElementById('compliance-risk-cards');
+        // ComplianceService module
+        const ComplianceService = (() => {
+            const PAYROLL_COLLECTION = 'payrollRecords';
+            const COMPLIANCE_EVENTS_COLLECTION = 'complianceEvents';
+            const SEVERITY_WEIGHTS = Object.freeze({ high: 30, medium: 15, low: 5 });
+            const RISK_LEVELS = Object.freeze([
+                { label: 'CRITICAL', min: 90 },
+                { label: 'HIGH', min: 60 },
+                { label: 'MEDIUM', min: 25 },
+                { label: 'LOW', min: 0 }
+            ]);
+            const RULE_ACTIONS = Object.freeze({
+                NET_MISMATCH: 'Recalculate salary components and reconcile net pay before release.',
+                DEDUCTIONS_EXCEED_GROSS: 'Review payroll structure because deductions must never exceed gross pay.',
+                NEGATIVE_NET_SALARY: 'Freeze payout and validate deduction postings to remove negative payroll outcomes.',
+                PF_MISSING: 'Add or correct PF contribution for the payroll summary before statutory filing.',
+                PF_WAGE_CAP_RULE: 'Review PF wage cap handling and adjust PF to the minimum capped contribution.',
+                ATTENDANCE_INVALID: 'Validate attendance source data and correct present days against working days.',
+                ZERO_WORKING_DAYS: 'Fix payroll calendar setup so working days remain greater than zero.',
+                ESI_THRESHOLD_RULE: 'Remove ESI deduction for employees above eligibility threshold and review enrollment.',
+                GENERATED_DATE_MISSING: 'Backfill generation timestamp to maintain auditability and traceability.'
+            });
 
-            if (!scoreElement || !cardContainer) return;
-
-            const totalScore = result?.totalScore ?? 0;
-            const events = result?.events || [];
-            const now = new Date();
-
-            scoreElement.textContent = totalScore;
-            if (lastScanElement) lastScanElement.textContent = now.toLocaleString();
-
-            const categories = {
-                TDS: events.filter(evt => evt.category === 'TDS'),
-                PF: events.filter(evt => evt.category === 'PF'),
-                ESI: events.filter(evt => evt.category === 'ESI'),
-                PT: events.filter(evt => evt.category === 'PT')
+            const state = {
+                initialized: false,
+                isScanning: false,
+                scanDebounceUntil: 0,
+                lastScanId: null,
+                unsubscribe: null,
+                monthFilter: '',
+                payrollMap: new Map(),
+                resultMap: new Map(),
+                summary: buildEmptySummary(),
+                dom: {},
+                pendingRealtimeTimer: null
             };
 
-            if (tdsCount) tdsCount.textContent = categories.TDS.length;
-            if (pfCount) pfCount.textContent = categories.PF.length;
-            if (esiCount) esiCount.textContent = categories.ESI.length;
-            if (ptCount) ptCount.textContent = categories.PT.length;
-
-            cardContainer.innerHTML = '';
-
-            const categoryEntries = Object.entries(categories);
-            if (events.length === 0) {
-                cardContainer.innerHTML = '<div class="anomaly-empty">No compliance risks detected for this cycle.</div>';
-                return;
-            }
-
-            categoryEntries.forEach(([category, items]) => {
-                const details = document.createElement('details');
-                details.open = true;
-                details.innerHTML = `
-                    <summary class="dashboard-tile__header">${category} Risks <span class="insight-badge ${items.length ? 'medium' : 'low'}">${items.length}</span></summary>
-                `;
-
-                if (items.length === 0) {
-                    const empty = document.createElement('div');
-                    empty.className = 'anomaly-empty';
-                    empty.textContent = 'No risks in this category.';
-                    details.appendChild(empty);
-                } else {
-                    items.forEach(evt => {
-                        const severity = (evt.severity || 'Low').toLowerCase();
-                        const detail = buildRiskDetails(evt);
-                        const card = document.createElement('div');
-                        card.className = 'risk-card';
-                        card.innerHTML = `
-                            <div class="risk-card__header">
-                                <span class="risk-label ${severity}">${evt.severity || 'LOW'} RISK</span>
-                                <span class="chart-card__subtitle">${evt.employeeName || evt.employeeId || 'Unknown Employee'}</span>
-                            </div>
-                            <div class="insight-item__title">${evt.description || 'Risk detected in payroll data.'}</div>
-                            <div class="dashboard-tile__meta">Expected: ${detail.expected}</div>
-                            <div class="dashboard-tile__meta">Actual: ${detail.actual}</div>
-                            <div class="dashboard-tile__meta">Impact: ${detail.impact}</div>
-                            <div class="risk-actions">
-                                <button class="btn btn-primary btn-sm">Fix Now</button>
-                                <button class="btn btn-outline btn-sm">Ignore</button>
-                                <button class="btn btn-danger btn-sm">Delete</button>
-                            </div>
-                        `;
-                        details.appendChild(card);
-                    });
-                }
-
-                cardContainer.appendChild(details);
-            });
-        }
-
-        function buildRiskDetails(event) {
-            const defaultImpact = event.severity === 'Critical'
-                ? 'Potential statutory penalty & audit risk.'
-                : event.severity === 'High'
-                    ? 'High probability of notice or correction.'
-                    : 'Monitor to avoid compliance drift.';
-
-            return {
-                expected: event.expected || 'Aligned statutory contribution & on-time deposits.',
-                actual: event.actual || 'Variance detected in payroll or filings.',
-                impact: event.impact || defaultImpact
-            };
-        }
-        
-        function loadRecentEmployees() {
-            const recentEmployees = employees
-                .sort((a, b) => new Date(b.createdAt || b.joinDate) - new Date(a.createdAt || a.joinDate))
-                .slice(0, 5);
-            
-            const list = document.getElementById('recent-employees-list');
-            list.innerHTML = '';
-            
-            if (recentEmployees.length === 0) {
-                list.innerHTML = '<p>No employees found</p>';
-                return;
-            }
-            
-            recentEmployees.forEach(emp => {
-                const item = document.createElement('div');
-                item.className = 'employee-item';
-                item.style.padding = '10px';
-                item.style.borderBottom = '1px solid #f1f3f5';
-                item.style.display = 'flex';
-                item.style.justifyContent = 'space-between';
-                item.style.alignItems = 'center';
-                
-                item.innerHTML = `
-                    <div>
-                        <strong>${emp.name}</strong>
-                        <div style="font-size: 0.8rem; color: #6c757d;">${emp.department} • ${emp.position}</div>
-                    </div>
-                    <span class="status ${emp.status}">${emp.status.charAt(0).toUpperCase() + emp.status.slice(1)}</span>
-                `;
-                
-                list.appendChild(item);
-            });
-        }
-        
-        function loadAttendanceOverview() {
-            const today = new Date();
-            const currentMonth = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
-            
-            // Calculate attendance statistics for the current month
-            let presentCount = 0;
-            let absentCount = 0;
-            let lateCount = 0;
-            let leaveCount = 0;
-            let halfdayCount = 0;
-            
-            Object.keys(attendanceRecords).forEach(date => {
-                if (date.startsWith(currentMonth)) {
-                    Object.values(attendanceRecords[date]).forEach(record => {
-                        if (record.status === 'present') presentCount++;
-                        else if (record.status === 'absent') absentCount++;
-                        else if (record.status === 'late') lateCount++;
-                        else if (record.status === 'leave') leaveCount++;
-                        else if (record.status === 'halfday') halfdayCount++;
-                    });
-                }
-            });
-            
-            const container = document.getElementById('attendance-overview');
-            container.innerHTML = `
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <div style="font-size: 2rem; font-weight: bold; color: var(--primary-color);">${presentCount}</div>
-                    <div>Present Days This Month</div>
-                </div>
-                <div style="display: flex; justify-content: space-around;">
-                    <div style="text-align: center;">
-                        <div style="font-size: 1.2rem; font-weight: bold;">${absentCount}</div>
-                        <div style="font-size: 0.8rem;">Absent</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 1.2rem; font-weight: bold;">${lateCount}</div>
-                        <div style="font-size: 0.8rem;">Late</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 1.2rem; font-weight: bold;">${leaveCount}</div>
-                        <div style="font-size: 0.8rem;">Leave</div>
-                    </div>
-                    <div style="text-align: center;">
-                    <div style="font-size: 1.2rem; font-weight: bold;">${halfdayCount}</div>
-                    <div style="font-size: 0.8rem;">Half Day</div>
-                </div>
-            </div>
-            `;
-        }
-
-        function renderPayrollAnomalies() {
-            if (typeof window.detectPayrollAnomalies !== 'function') return;
-
-            const listElement = document.getElementById('anomaly-list');
-            const countElement = document.getElementById('anomaly-count');
-
-            if (!listElement) return;
-
-            const anomalies = window.detectPayrollAnomalies({
-                employees,
-                attendanceRecords,
-                payrollRecords,
-                overtimeLimitHours: 2,
-                firebaseAvailable: typeof isFirebaseAvailable === 'function' ? isFirebaseAvailable() : false
-            });
-
-            listElement.innerHTML = '';
-            if (countElement) {
-                countElement.textContent = anomalies.length;
-            }
-
-            if (anomalies.length === 0) {
-                listElement.innerHTML = '<div class="anomaly-empty">No issues detected. Payroll looks healthy.</div>';
-                return;
-            }
-
-            anomalies.forEach(anomaly => {
-                const item = document.createElement('div');
-                const riskLevel = anomaly.severity ? anomaly.severity.toLowerCase() : 'medium';
-
-                item.className = 'insight-item';
-                item.innerHTML = `
-                    <div class="insight-item__meta">
-                        <span class="insight-badge ${riskLevel}">${anomaly.type || 'Anomaly'}</span>
-                        <div class="insight-item__title">${anomaly.employeeName || anomaly.employeeId || 'Unknown Employee'}</div>
-                        <div class="insight-item__subtitle">${anomaly.description}</div>
-                    </div>
-                    <button class="insight-delete" disabled>
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
-                `;
-
-                listElement.appendChild(item);
-            });
-        }
-
-        // Payroll History Functions
-        function getPayrollRunDate(value) {
-            if (!value) return null;
-            if (typeof value?.toDate === 'function') {
-                return value.toDate();
-            }
-            const parsed = new Date(value);
-            return Number.isNaN(parsed.getTime()) ? null : parsed;
-        }
-
-        function formatPayrollRunDate(value) {
-            const parsed = getPayrollRunDate(value);
-            return parsed ? parsed.toLocaleDateString('en-GB') : '';
-        }
-
-        function normalizePayrollMonth(monthInput) {
-            if (!monthInput) return new Date().toISOString().slice(0, 7);
-            if (/^\d{4}-\d{2}$/.test(monthInput)) return monthInput;
-            const parsed = new Date(monthInput);
-            if (!Number.isNaN(parsed.getTime())) {
-                return parsed.toISOString().slice(0, 7);
-            }
-            return new Date().toISOString().slice(0, 7);
-        }
-
-        function getNumericValue(value) {
-            const numeric = Number(value);
-            return Number.isFinite(numeric) ? numeric : 0;
-        }
-
-        async function savePayrollSummary(employee, month, summary) {
-            if (!ensureFirebaseReady('payroll')) return;
-
-            try {
-                const normalizedEmployeeId = sanitizeId(employee?.id || employee?.employeeId || '');
-                const normalizedMonth = normalizePayrollMonth(month);
-                const { doc, setDoc, serverTimestamp } = window.firestoreFunctions;
-
-                const payload = {
-                    employeeId: normalizedEmployeeId,
-                    month: normalizedMonth,
-                    basic: getNumericValue(summary?.basic),
-                    hra: getNumericValue(summary?.hra),
-                    allowances: getNumericValue(summary?.allowances),
-                    pf: getNumericValue(summary?.pf),
-                    esi: getNumericValue(summary?.esi),
-                    deductions: getNumericValue(summary?.deductions),
-                    gross: getNumericValue(summary?.gross),
-                    net: getNumericValue(summary?.net),
-                    workingDays: getNumericValue(summary?.workingDays),
-                    type: 'summary',
-                    presentDays: getNumericValue(summary?.presentDays),
-                    leaveDays: getNumericValue(summary?.leaveDays),
-                    generatedAt: typeof serverTimestamp === 'function' ? serverTimestamp() : new Date()
+            function buildEmptySummary() {
+                return {
+                    complianceScore: 100,
+                    scannedAt: null,
+                    month: '',
+                    severityCounts: { high: 0, medium: 0, low: 0 },
+                    employeesAtRisk: 0,
+                    totalViolations: 0,
+                    systemRiskLevel: 'LOW',
+                    progress: { scanned: 0, total: 0, percentage: 0 },
+                    results: []
                 };
-
-                console.log('[Payroll] savePayrollSummary payload', payload);
-                await setDoc(doc(window.firebaseDb, 'payrollRecords', `${normalizedEmployeeId}_${normalizedMonth}`), payload, { merge: true });
-            } catch (error) {
-                console.error('[Payroll] savePayrollSummary failed', error);
-                updateSyncStatus('payroll', 'error');
-                setSyncError('payroll', describeSyncError(error));
-            }
-        }
-
-        function setComplianceSelection(row, record) {
-            const previousSelected = document.querySelectorAll('.payroll-history-row.selected-row, .compliance-history-row.selected-row');
-            previousSelected.forEach(element => element.classList.remove('selected-row'));
-            row.classList.add('selected-row');
-            window.selectedComplianceTarget = {
-                employeeId: record.employeeId,
-                month: normalizePayrollMonth(record.month)
-            };
-        }
-
-        function renderPayrollHistory() {
-            const payrollTableBody = document.getElementById('payrollHistoryBody');
-            const complianceTableBody = document.getElementById('compliance-risk-table-body');
-            if (payrollTableBody) payrollTableBody.innerHTML = '';
-            if (complianceTableBody) complianceTableBody.innerHTML = '';
-
-            if (payrollRecords.length === 0) {
-                const emptyRow = `
-                    <tr>
-                        <td colspan="5" style="text-align: center; padding: 20px;">No payroll records found</td>
-                    </tr>
-                `;
-                if (payrollTableBody) payrollTableBody.innerHTML = emptyRow;
-                if (complianceTableBody) complianceTableBody.innerHTML = emptyRow;
-                return;
             }
 
-            payrollRecords.forEach(record => {
-                const cells = `
-                    <td>${record.employeeId || '-'}</td>
-                    <td>${normalizePayrollMonth(record.month)}</td>
-                    <td>${formatCurrency(getNumericValue(record.gross))}</td>
-                    <td>${formatCurrency(getNumericValue(record.net))}</td>
-                    <td>${formatPayrollRunDate(record.generatedAt) || '-'}</td>
-                `;
-
-                const payrollRow = document.createElement('tr');
-                payrollRow.className = 'payroll-history-row';
-                payrollRow.style.cursor = 'pointer';
-                payrollRow.innerHTML = cells;
-                payrollRow.addEventListener('click', () => setComplianceSelection(payrollRow, record));
-                if (payrollTableBody) payrollTableBody.appendChild(payrollRow);
-
-                const complianceRow = document.createElement('tr');
-                complianceRow.className = 'compliance-history-row';
-                complianceRow.style.cursor = 'pointer';
-                complianceRow.innerHTML = cells;
-                complianceRow.addEventListener('click', () => setComplianceSelection(complianceRow, record));
-                if (complianceTableBody) complianceTableBody.appendChild(complianceRow);
-            });
-        }
-
-        async function loadPayrollHistory() {
-            if (!ensureFirebaseReady('payroll')) {
-                renderPayrollHistory();
-                return;
+            function log(level, message, meta = {}) {
+                const payload = { scope: 'ComplianceService', message, ...meta };
+                const logger = console[level] || console.log;
+                logger('[ComplianceService]', payload);
             }
 
-            try {
-                const { collection, query, orderBy, getDocs } = window.firestoreFunctions;
-                const payrollQuery = query(collection(window.firebaseDb, 'payrollRecords'), orderBy('generatedAt', 'desc'));
-                const snapshot = await getDocs(payrollQuery);
-                payrollRecords = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
-                localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
-                renderPayrollHistory();
-            } catch (error) {
-                console.error('[Payroll] loadPayrollHistory failed', error);
-                updateSyncStatus('payroll', 'error');
-                setSyncError('payroll', describeSyncError(error));
-                renderPayrollHistory();
-            }
-        }
-
-        function runPayrollRules(employeeId, payroll) {
-            const violations = [];
-            const gross = getNumericValue(payroll?.gross);
-            const deductions = getNumericValue(payroll?.deductions);
-            const net = getNumericValue(payroll?.net);
-            const pf = getNumericValue(payroll?.pf);
-            const workingDays = getNumericValue(payroll?.workingDays);
-            const presentDays = getNumericValue(payroll?.presentDays);
-
-            if (net !== gross - deductions) {
-                violations.push({
-                    ruleId: 'NET_MISMATCH',
-                    employeeId,
-                    severity: 'high',
-                    description: 'Net pay does not match gross minus deductions.',
-                    expected: gross - deductions,
-                    actual: net,
-                    impact: 'Incorrect salary payout risk.'
-                });
+            function getFirestoreContext() {
+                if (!window.firebaseDb || !window.firestoreFunctions) {
+                    return null;
+                }
+                return {
+                    db: window.firebaseDb,
+                    fx: window.firestoreFunctions
+                };
             }
 
-            if (pf <= 0) {
-                violations.push({
-                    ruleId: 'PF_MISSING',
-                    employeeId,
-                    severity: 'medium',
-                    description: 'PF deduction is missing or zero.',
-                    expected: '> 0',
-                    actual: pf,
-                    impact: 'PF non-compliance risk.'
-                });
+            function getDashboardState() {
+                return {
+                    summary: state.summary,
+                    results: Array.from(state.resultMap.values())
+                };
             }
 
-            if (presentDays > workingDays) {
-                violations.push({
-                    ruleId: 'ATTENDANCE_INVALID',
-                    employeeId,
-                    severity: 'medium',
-                    description: 'Present days cannot exceed working days.',
-                    expected: `<= ${workingDays}`,
-                    actual: presentDays,
-                    impact: 'Attendance/payroll inconsistency risk.'
-                });
+            function cacheDom() {
+                state.dom = {
+                    runButton: document.getElementById('compliance-run-scan'),
+                    monthFilter: document.getElementById('compliance-month-filter'),
+                    statusBanner: document.getElementById('compliance-status-banner'),
+                    statusValue: document.getElementById('compliance-scan-status'),
+                    progressLabel: document.getElementById('compliance-progress-label'),
+                    progressPercent: document.getElementById('compliance-progress-percent'),
+                    progressFill: document.getElementById('compliance-progress-fill'),
+                    scoreValue: document.getElementById('compliance-score-value'),
+                    lastScanValue: document.getElementById('compliance-last-scan'),
+                    summaryHigh: document.getElementById('compliance-summary-high'),
+                    summaryMedium: document.getElementById('compliance-summary-medium'),
+                    summaryLow: document.getElementById('compliance-summary-low'),
+                    summaryLastScan: document.getElementById('compliance-summary-last-scan'),
+                    categoryHigh: document.getElementById('compliance-high-count'),
+                    categoryMedium: document.getElementById('compliance-medium-count'),
+                    categoryLow: document.getElementById('compliance-low-count'),
+                    categoryEmployees: document.getElementById('compliance-employee-risk-count'),
+                    riskCards: document.getElementById('compliance-risk-cards'),
+                    tableBody: document.getElementById('compliance-risk-table-body'),
+                    modal: document.getElementById('compliance-detail-modal'),
+                    modalBody: document.getElementById('compliance-modal-body'),
+                    modalSubtitle: document.getElementById('compliance-modal-subtitle'),
+                    modalClose: document.getElementById('compliance-modal-close')
+                };
             }
 
-            return violations;
-        }
+            function escapeHtml(value) {
+                return String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
 
-        function renderComplianceResults(violations) {
-            const complianceTableBody = document.getElementById('compliance-risk-table-body');
+            function formatCurrencySafe(value) {
+                if (typeof formatCurrency === 'function') {
+                    return formatCurrency(Number(value) || 0);
+                }
+                return `₹${(Number(value) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            }
 
-            if (complianceTableBody) {
-                complianceTableBody.innerHTML = '';
+            function formatDateTime(value) {
+                if (!value) return '--';
+                if (typeof value?.toDate === 'function') {
+                    return value.toDate().toLocaleString();
+                }
+                const parsed = new Date(value);
+                return Number.isNaN(parsed.getTime()) ? '--' : parsed.toLocaleString();
+            }
 
-                if (!violations.length) {
-                    complianceTableBody.innerHTML = `
-                        <tr>
-                            <td colspan="5" style="text-align: center; padding: 20px;">No compliance violations found for this month.</td>
-                        </tr>
-                    `;
-                } else {
-                    const violationsByEmployee = violations.reduce((acc, violation) => {
-                        const key = violation.employeeId || 'Unknown';
-                        if (!acc[key]) acc[key] = [];
-                        acc[key].push(violation);
-                        return acc;
-                    }, {});
+            function getMonthValue() {
+                return state.dom.monthFilter?.value || '';
+            }
 
-                    Object.entries(violationsByEmployee).forEach(([employeeId, employeeViolations]) => {
-                        const matchingRecords = payrollRecords
-                            .filter(record => (record.employeeId || '') === employeeId)
-                            .sort((a, b) => {
-                                const timeA = new Date(a.generatedAt || a.createdAt || 0).getTime();
-                                const timeB = new Date(b.generatedAt || b.createdAt || 0).getTime();
-                                return timeB - timeA;
-                            });
+            function setProgress(scanned, total) {
+                const safeTotal = Math.max(Number(total) || 0, 0);
+                const safeScanned = Math.min(Math.max(Number(scanned) || 0, 0), safeTotal || 0);
+                const percentage = safeTotal ? Math.round((safeScanned / safeTotal) * 100) : 0;
+                state.summary.progress = { scanned: safeScanned, total: safeTotal, percentage };
 
-                        const sourceRecord = matchingRecords[0] || {};
-                        const sourceViolation = employeeViolations[0] || {};
+                if (state.dom.progressLabel) state.dom.progressLabel.textContent = `${safeScanned} scanned out of ${safeTotal}`;
+                if (state.dom.progressPercent) state.dom.progressPercent.textContent = `${percentage}%`;
+                if (state.dom.progressFill) state.dom.progressFill.style.width = `${percentage}%`;
+            }
 
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${employeeId}</td>
-                            <td>${normalizePayrollMonth(sourceRecord.month || sourceViolation.month || '-')}</td>
-                            <td>${formatCurrency(getNumericValue(sourceRecord.gross || sourceViolation.gross))}</td>
-                            <td>${formatCurrency(getNumericValue(sourceRecord.net || sourceViolation.net))}</td>
-                            <td>${formatPayrollRunDate(sourceRecord.generatedAt || sourceViolation.generatedAt) || '-'}</td>
-                        `;
-
-                        complianceTableBody.appendChild(row);
-                    });
+            function setStatus(status, bannerMessage, tone = 'neutral') {
+                if (state.dom.statusValue) state.dom.statusValue.textContent = status;
+                if (state.dom.statusBanner) {
+                    state.dom.statusBanner.textContent = bannerMessage;
+                    state.dom.statusBanner.dataset.tone = tone;
                 }
             }
 
-            renderComplianceViolations(violations, new Date().toLocaleString());
-        }
-
-        async function runComplianceScanAll() {
-            console.log('[COMPLIANCE DEBUG] === Starting FULL compliance scan ===');
-
-            if (!window.firebaseDb) {
-                console.error('[COMPLIANCE DEBUG] Firebase DB not available');
-                alert('Firebase not ready.');
-                return;
+            function setScanningState(isScanning) {
+                state.isScanning = isScanning;
+                if (state.dom.runButton) {
+                    state.dom.runButton.disabled = isScanning;
+                    state.dom.runButton.innerHTML = isScanning
+                        ? '<i class="fas fa-spinner fa-spin"></i> Scanning Payrolls'
+                        : '<i class="fas fa-wave-square"></i> Scan All Payrolls';
+                }
             }
 
-            const { getDocs, collection, query } = window.firestoreFunctions;
+            function buildRecordKey(record) {
+                return `${record.employeeId}__${record.month}`;
+            }
 
-            try {
-                const q = query(collection(window.firebaseDb, 'payrollRecords'));
-                const snap = await getDocs(q);
+            function buildDomSafeId(value) {
+                return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+            }
 
-                console.log('[COMPLIANCE DEBUG] Payroll docs found:', snap.size);
+            function normalizePayrollRecord(id, data) {
+                const source = data || {};
+                return {
+                    id,
+                    employeeId: String(source.employeeId || '').trim(),
+                    month: typeof normalizePayrollMonth === 'function' ? normalizePayrollMonth(source.month) : String(source.month || ''),
+                    gross: Number(source.gross) || 0,
+                    net: Number(source.net) || 0,
+                    deductions: Number(source.deductions) || 0,
+                    pf: Number(source.pf) || 0,
+                    esi: Number(source.esi) || 0,
+                    workingDays: Number(source.workingDays) || 0,
+                    presentDays: Number(source.presentDays) || 0,
+                    generatedAt: source.generatedAt || null,
+                    type: source.type || '',
+                    raw: source
+                };
+            }
 
-                if (snap.empty) {
-                    console.warn('[COMPLIANCE DEBUG] No payroll documents found.');
-                    renderComplianceResults([]);
+            // Data Fetch Layer
+            async function fetchPayrollSummaries(month = '') {
+                const firestore = getFirestoreContext();
+                if (!firestore) {
+                    throw new Error('Firebase not ready');
+                }
+
+                const { db, fx } = firestore;
+                const constraints = [fx.where('type', '==', 'summary')];
+                if (month) {
+                    constraints.push(fx.where('month', '==', month));
+                }
+
+                const payrollQuery = fx.query(fx.collection(db, PAYROLL_COLLECTION), ...constraints);
+                const snapshot = await fx.getDocs(payrollQuery);
+                return snapshot.docs.map((docSnap) => normalizePayrollRecord(docSnap.id, docSnap.data()));
+            }
+
+            // Rule Engine Layer
+            async function evaluatePayrollRules(record) {
+                const rules = [
+                    () => createViolation(record, 'NET_MISMATCH', 'high', 'Net salary does not equal gross minus deductions.', record.gross - record.deductions, record.net, 'Incorrect salary payout can create employee disputes and statutory reconciliation gaps.'),
+                    () => createViolation(record, 'DEDUCTIONS_EXCEED_GROSS', 'high', 'Total deductions exceed gross salary.', `<= ${record.gross}`, record.deductions, 'Gross pay being fully exceeded can indicate payroll corruption or severe configuration errors.', record.deductions > record.gross),
+                    () => createViolation(record, 'NEGATIVE_NET_SALARY', 'high', 'Net salary is negative.', '>= 0', record.net, 'Negative payroll values can trigger payout failures and compliance escalations.', record.net < 0),
+                    () => createViolation(record, 'PF_MISSING', 'medium', 'Provident Fund contribution is missing or zero.', '> 0', record.pf, 'Missing PF creates statutory non-compliance and employee benefit exposure.', record.pf <= 0),
+                    () => createViolation(record, 'PF_WAGE_CAP_RULE', 'medium', 'PF contribution appears below the wage cap minimum.', '>= 1800', record.pf, 'Under-deducted PF can lead to contribution shortfalls and retrospective recovery.', record.gross > 15000 && record.pf < 1800),
+                    () => createViolation(record, 'ATTENDANCE_INVALID', 'medium', 'Present days exceed configured working days.', `<= ${record.workingDays}`, record.presentDays, 'Attendance mismatches undermine payroll accuracy and audit confidence.', record.presentDays > record.workingDays),
+                    () => createViolation(record, 'ZERO_WORKING_DAYS', 'high', 'Working days are zero or negative.', '> 0', record.workingDays, 'Zero working days indicates invalid payroll period configuration.', record.workingDays <= 0),
+                    () => createViolation(record, 'ESI_THRESHOLD_RULE', 'medium', 'ESI is deducted for an employee above the eligibility threshold.', '<= 21000 gross for ESI deduction', `${record.gross} gross / ${record.esi} ESI`, 'Invalid ESI deductions can cause employee reimbursement issues and filing exceptions.', record.gross > 21000 && record.esi > 0),
+                    () => createViolation(record, 'GENERATED_DATE_MISSING', 'low', 'Payroll summary is missing generated timestamp.', 'generatedAt present', record.generatedAt ? 'present' : 'missing', 'Missing generation dates reduce traceability and weaken audit readiness.', !record.generatedAt),
+                ];
+
+                const evaluations = await Promise.all(rules.map(async (rule) => rule()));
+                return evaluations.filter(Boolean);
+            }
+
+            function createViolation(record, ruleId, severity, description, expected, actual, impact, shouldFlag = true) {
+                if (ruleId === 'NET_MISMATCH') {
+                    shouldFlag = record.gross - record.deductions !== record.net;
+                }
+                if (!shouldFlag) return null;
+                return {
+                    ruleId,
+                    employeeId: record.employeeId,
+                    month: record.month,
+                    severity,
+                    description,
+                    expected,
+                    actual,
+                    impact,
+                    riskScore: SEVERITY_WEIGHTS[severity] || 0,
+                    recommendedAction: RULE_ACTIONS[ruleId] || 'Review payroll summary and resolve the discrepancy.'
+                };
+            }
+
+            function computeRiskScore(violations = []) {
+                const totalRiskScore = violations.reduce((sum, violation) => sum + (SEVERITY_WEIGHTS[violation.severity] || 0), 0);
+                const riskLevel = RISK_LEVELS.find((entry) => totalRiskScore >= entry.min)?.label || 'LOW';
+                return { totalRiskScore, riskLevel };
+            }
+
+            // Aggregation Layer
+            function aggregateComplianceResults(records, employeeResults, scannedAt, month) {
+                const severityCounts = employeeResults.reduce((acc, result) => {
+                    result.violations.forEach((violation) => {
+                        acc[violation.severity] = (acc[violation.severity] || 0) + 1;
+                    });
+                    return acc;
+                }, { high: 0, medium: 0, low: 0 });
+
+                const employeesAtRisk = employeeResults.filter((result) => result.violationCount > 0).length;
+                const totalViolations = employeeResults.reduce((sum, result) => sum + result.violationCount, 0);
+                const cumulativeRisk = employeeResults.reduce((sum, result) => sum + result.riskScore, 0);
+                const denominator = Math.max(records.length * 100, 100);
+                const complianceScore = Math.max(0, Math.min(100, Math.round(100 - ((cumulativeRisk / denominator) * 100))));
+                const systemRiskLevel = complianceScore >= 85 ? 'LOW' : complianceScore >= 65 ? 'MEDIUM' : complianceScore >= 40 ? 'HIGH' : 'CRITICAL';
+
+                return {
+                    complianceScore,
+                    scannedAt,
+                    month: month || '',
+                    severityCounts: {
+                        high: severityCounts.high || 0,
+                        medium: severityCounts.medium || 0,
+                        low: severityCounts.low || 0
+                    },
+                    employeesAtRisk,
+                    totalViolations,
+                    systemRiskLevel,
+                    progress: state.summary.progress,
+                    results: employeeResults
+                };
+            }
+
+            // Persistence Layer
+            async function persistComplianceResults(employeeResults, summary, scanId) {
+                const firestore = getFirestoreContext();
+                if (!firestore) {
+                    log('warn', 'Skipping compliance persistence because Firebase is not ready.', { scanId });
                     return;
                 }
 
-                let violations = [];
+                const { db, fx } = firestore;
+                const batch = fx.writeBatch(db);
+                const summaryRef = fx.doc(db, COMPLIANCE_EVENTS_COLLECTION, `summary_${scanId}`);
 
-                for (const docSnap of snap.docs) {
-                    const payroll = docSnap.data();
-                    if (payroll.type === 'run') {
-                        console.log('[COMPLIANCE DEBUG] Skipping run snapshot:', docSnap.id);
-                        continue;
+                employeeResults.forEach((result) => {
+                    const docRef = fx.doc(db, COMPLIANCE_EVENTS_COLLECTION, `${scanId}_${result.employeeId}_${result.month}`);
+                    batch.set(docRef, {
+                        employeeId: result.employeeId,
+                        month: result.month,
+                        violations: result.violations,
+                        riskScore: result.riskScore,
+                        riskLevel: result.riskLevel,
+                        scannedAt: result.scannedAt,
+                        scanId
+                    }, { merge: true });
+                });
+
+                batch.set(summaryRef, {
+                    employeeId: '__summary__',
+                    month: summary.month || 'ALL',
+                    violations: [],
+                    riskScore: summary.complianceScore,
+                    riskLevel: summary.systemRiskLevel,
+                    scannedAt: summary.scannedAt,
+                    scanId,
+                    aggregatedSummary: {
+                        severityCounts: summary.severityCounts,
+                        employeesAtRisk: summary.employeesAtRisk,
+                        totalViolations: summary.totalViolations,
+                        complianceScore: summary.complianceScore
                     }
+                }, { merge: true });
 
-                    console.log('[COMPLIANCE DEBUG] Evaluating employee:', payroll.employeeId);
-                    console.log('[COMPLIANCE DEBUG] Raw payroll data:', payroll);
+                await batch.commit();
+            }
 
-                    const normalized = {
-                        gross: Number(payroll.gross || 0),
-                        deductions: Number(payroll.deductions || 0),
-                        net: Number(payroll.net || 0),
-                        pf: Number(payroll.pf || 0),
-                        workingDays: Number(payroll.workingDays || 0),
-                        presentDays: Number(payroll.presentDays || 0),
+            function upsertResultRow(result) {
+                if (!state.dom.tableBody) return;
+                const rowId = `compliance-row-${buildDomSafeId(buildRecordKey(result))}`;
+                let row = document.getElementById(rowId);
+
+                if (!row) {
+                    row = document.createElement('tr');
+                    row.id = rowId;
+                    row.className = 'compliance-history-row';
+                    row.style.cursor = 'pointer';
+                    row.addEventListener('click', () => openViolationModal(buildRecordKey(result)));
+                    state.dom.tableBody.appendChild(row);
+                }
+
+                row.dataset.resultKey = buildRecordKey(result);
+                row.innerHTML = `
+                    <td>${escapeHtml(result.employeeId)}</td>
+                    <td>${escapeHtml(result.month)}</td>
+                    <td>${escapeHtml(formatCurrencySafe(result.gross))}</td>
+                    <td>${escapeHtml(formatCurrencySafe(result.net))}</td>
+                    <td>${escapeHtml(String(result.riskScore))}</td>
+                    <td><span class="severity-chip severity-${result.riskLevel === 'LOW' ? 'low' : result.riskLevel === 'MEDIUM' ? 'medium' : 'high'}">${escapeHtml(result.riskLevel)}</span></td>
+                    <td>${escapeHtml(String(result.violationCount))}</td>
+                `;
+            }
+
+            function renderRiskCards(results) {
+                if (!state.dom.riskCards) return;
+                if (!results.length) {
+                    state.dom.riskCards.innerHTML = '<div class="anomaly-empty">No compliance risks detected for the selected payroll summaries.</div>';
+                    return;
+                }
+
+                state.dom.riskCards.innerHTML = results.map((result) => {
+                    const severityTone = result.riskLevel === 'LOW' ? 'low' : result.riskLevel === 'MEDIUM' ? 'medium' : 'high';
+                    const violationsMarkup = result.violations.length
+                        ? result.violations.map((violation) => `
+                            <div class="violation-item">
+                                <div class="violation-item__header">
+                                    <span class="severity-chip severity-${escapeHtml(violation.severity)}">${escapeHtml(violation.severity.toUpperCase())}</span>
+                                    <strong>${escapeHtml(violation.ruleId)}</strong>
+                                </div>
+                                <div>${escapeHtml(violation.description)}</div>
+                                <div><strong>Impact:</strong> ${escapeHtml(violation.impact)}</div>
+                                <div><strong>Recommended Action:</strong> ${escapeHtml(violation.recommendedAction)}</div>
+                            </div>
+                        `).join('')
+                        : '<div class="anomaly-empty">No violations for this employee.</div>';
+
+                    return `
+                        <details class="fade-in">
+                            <summary>
+                                <div class="risk-card__header">
+                                    <div>
+                                        <span class="risk-label ${severityTone}">${escapeHtml(result.riskLevel)} RISK</span>
+                                        <div class="insight-item__title">${escapeHtml(result.employeeId)} · ${escapeHtml(result.month)}</div>
+                                    </div>
+                                    <div class="dashboard-tile__meta">Score ${escapeHtml(String(result.riskScore))} · ${escapeHtml(String(result.violationCount))} violations</div>
+                                </div>
+                            </summary>
+                            ${violationsMarkup}
+                        </details>
+                    `;
+                }).join('');
+            }
+
+            function renderSummary(summary) {
+                const scannedAt = formatDateTime(summary.scannedAt);
+                if (state.dom.scoreValue) state.dom.scoreValue.textContent = String(summary.complianceScore);
+                if (state.dom.lastScanValue) state.dom.lastScanValue.textContent = scannedAt;
+                if (state.dom.summaryHigh) state.dom.summaryHigh.textContent = String(summary.severityCounts.high);
+                if (state.dom.summaryMedium) state.dom.summaryMedium.textContent = String(summary.severityCounts.medium);
+                if (state.dom.summaryLow) state.dom.summaryLow.textContent = String(summary.severityCounts.low);
+                if (state.dom.summaryLastScan) state.dom.summaryLastScan.textContent = scannedAt;
+                if (state.dom.categoryHigh) state.dom.categoryHigh.textContent = String(summary.severityCounts.high);
+                if (state.dom.categoryMedium) state.dom.categoryMedium.textContent = String(summary.severityCounts.medium);
+                if (state.dom.categoryLow) state.dom.categoryLow.textContent = String(summary.severityCounts.low);
+                if (state.dom.categoryEmployees) state.dom.categoryEmployees.textContent = String(summary.employeesAtRisk);
+            }
+
+            // UI Rendering Layer
+            function renderComplianceDashboard({ summary, results, changedKeys = null }) {
+                state.summary = summary;
+                renderSummary(summary);
+                setProgress(summary.progress?.scanned || 0, summary.progress?.total || 0);
+
+                if (!state.dom.tableBody || !state.dom.riskCards) return;
+
+                const resultsToRender = Array.isArray(changedKeys) && changedKeys.length
+                    ? changedKeys.map((key) => state.resultMap.get(key)).filter(Boolean)
+                    : results;
+
+                if (!Array.isArray(changedKeys) || !changedKeys.length) {
+                    state.dom.tableBody.innerHTML = '';
+                    results.forEach(upsertResultRow);
+                    renderRiskCards(results);
+                    return;
+                }
+
+                resultsToRender.forEach(upsertResultRow);
+                renderRiskCards(Array.from(state.resultMap.values()).sort(sortResults));
+            }
+
+            function sortResults(a, b) {
+                if (b.riskScore !== a.riskScore) return b.riskScore - a.riskScore;
+                return `${a.employeeId}_${a.month}`.localeCompare(`${b.employeeId}_${b.month}`);
+            }
+
+            function openViolationModal(resultKey) {
+                const result = state.resultMap.get(resultKey);
+                if (!result || !state.dom.modal || !state.dom.modalBody) return;
+
+                if (state.dom.modalSubtitle) {
+                    state.dom.modalSubtitle.textContent = `${result.employeeId} · ${result.month} · Risk Score ${result.riskScore}`;
+                }
+
+                state.dom.modalBody.innerHTML = result.violations.length
+                    ? result.violations.map((violation) => `
+                        <div class="violation-item">
+                            <div class="violation-item__header">
+                                <span class="severity-chip severity-${escapeHtml(violation.severity)}">${escapeHtml(violation.severity.toUpperCase())}</span>
+                                <strong>${escapeHtml(violation.ruleId)}</strong>
+                            </div>
+                            <div>${escapeHtml(violation.description)}</div>
+                            <div><strong>Expected:</strong> ${escapeHtml(String(violation.expected))}</div>
+                            <div><strong>Actual:</strong> ${escapeHtml(String(violation.actual))}</div>
+                            <div><strong>Impact:</strong> ${escapeHtml(violation.impact)}</div>
+                            <div><strong>Recommended Action:</strong> ${escapeHtml(violation.recommendedAction)}</div>
+                        </div>
+                    `).join('')
+                    : '<div class="anomaly-empty">No detailed violations available.</div>';
+
+                state.dom.modal.classList.add('open');
+                state.dom.modal.setAttribute('aria-hidden', 'false');
+            }
+
+            function closeViolationModal() {
+                if (!state.dom.modal) return;
+                state.dom.modal.classList.remove('open');
+                state.dom.modal.setAttribute('aria-hidden', 'true');
+            }
+
+            async function buildEmployeeResults(records, onProgress) {
+                const total = records.length;
+                let scanned = 0;
+                const results = [];
+
+                for (const record of records) {
+                    const violations = await evaluatePayrollRules(record);
+                    const { totalRiskScore, riskLevel } = computeRiskScore(violations);
+                    const result = {
+                        employeeId: record.employeeId,
+                        month: record.month,
+                        gross: record.gross,
+                        net: record.net,
+                        violations,
+                        violationCount: violations.length,
+                        riskScore: totalRiskScore,
+                        riskLevel,
+                        scannedAt: new Date().toISOString(),
+                        scanId: state.lastScanId
                     };
-
-                    console.log('[COMPLIANCE DEBUG] Normalized payroll:', normalized);
-
-                    const ruleResult = runPayrollRules(payroll.employeeId, normalized);
-
-                    console.log('[COMPLIANCE DEBUG] Rule result:', ruleResult);
-
-                    if (Array.isArray(ruleResult) && ruleResult.length > 0) {
-                        violations.push(...ruleResult);
+                    results.push(result);
+                    scanned += 1;
+                    if (typeof onProgress === 'function') {
+                        onProgress(scanned, total, result);
                     }
+                    await new Promise((resolve) => setTimeout(resolve, 0));
                 }
 
-                console.log('[COMPLIANCE DEBUG] Final violations array:', violations);
+                return results;
+            }
 
-                if (!violations.length) {
-                    console.warn('[COMPLIANCE DEBUG] No violations detected after full scan.');
+            async function runBulkComplianceScan(options = {}) {
+                const month = options.month ?? getMonthValue();
+                state.monthFilter = month || '';
+                const now = Date.now();
+                if (state.isScanning || now < state.scanDebounceUntil) {
+                    log('warn', 'Scan ignored due to debounce or active execution.', { isScanning: state.isScanning, scanDebounceUntil: state.scanDebounceUntil, now });
+                    return getDashboardState();
                 }
 
-                renderComplianceResults(violations);
+                state.scanDebounceUntil = now + 1200;
+                state.lastScanId = `scan_${now}`;
+                setScanningState(true);
+                setStatus('Running', 'Compliance scan is running across payroll summaries.', 'running');
 
-                console.log('[COMPLIANCE DEBUG] === Compliance scan complete ===');
+                try {
+                    const records = await fetchPayrollSummaries(month);
+                    state.payrollMap = new Map(records.map((record) => [buildRecordKey(record), record]));
+                    refreshMonthOptions(records);
+                    setProgress(0, records.length);
 
-            } catch (err) {
-                console.error('[COMPLIANCE DEBUG] Compliance scan failed:', err);
-                alert('Compliance scan failed: ' + err.message);
+                    if (!records.length) {
+                        state.resultMap = new Map();
+                        const emptySummary = {
+                            ...buildEmptySummary(),
+                            scannedAt: new Date().toISOString(),
+                            month: month || ''
+                        };
+                        renderComplianceDashboard({ summary: emptySummary, results: [] });
+                        setStatus('Completed', 'No payroll summary documents found for compliance scanning.', 'empty');
+                        updateComplianceWidgets();
+                        return getDashboardState();
+                    }
+
+                    const interimResults = new Map();
+                    const employeeResults = await buildEmployeeResults(records, (scanned, total, result) => {
+                        interimResults.set(buildRecordKey(result), result);
+                        state.resultMap = new Map(interimResults);
+                        setProgress(scanned, total);
+                    });
+
+                    const summary = aggregateComplianceResults(records, employeeResults.sort(sortResults), new Date().toISOString(), month);
+                    state.resultMap = new Map(employeeResults.map((result) => [buildRecordKey(result), result]));
+                    renderComplianceDashboard({ summary, results: employeeResults.sort(sortResults) });
+                    await persistComplianceResults(employeeResults, summary, state.lastScanId);
+                    setStatus('Completed', 'Compliance scan completed successfully.', 'success');
+                    updateComplianceWidgets();
+                    return getDashboardState();
+                } catch (error) {
+                    log('error', 'Bulk compliance scan failed.', { message: error.message });
+                    setStatus('Error', `Compliance scan failed: ${error.message}`, 'error');
+                    throw error;
+                } finally {
+                    setScanningState(false);
+                }
             }
-        }
 
-        window.runComplianceScan = runComplianceScanAll;
+            async function rerunForChangedRecords(changedRecords = [], options = {}) {
+                if (!changedRecords.length && !options.fullRefresh) return;
+                const changedKeys = [];
+                const nextResultMap = new Map(state.resultMap);
 
-        function renderComplianceViolations(violations, scanTimestamp) {
-            const cardContainer = document.getElementById('compliance-risk-cards');
-            const summaryHigh = document.getElementById('compliance-summary-high');
-            const summaryMedium = document.getElementById('compliance-summary-medium');
-            const summaryLow = document.getElementById('compliance-summary-low');
-            const summaryLastScan = document.getElementById('compliance-summary-last-scan');
-            const lastScanElement = document.getElementById('compliance-last-scan');
+                await Promise.all(changedRecords.map(async (record) => {
+                    const violations = await evaluatePayrollRules(record);
+                    const { totalRiskScore, riskLevel } = computeRiskScore(violations);
+                    const result = {
+                        employeeId: record.employeeId,
+                        month: record.month,
+                        gross: record.gross,
+                        net: record.net,
+                        violations,
+                        violationCount: violations.length,
+                        riskScore: totalRiskScore,
+                        riskLevel,
+                        scannedAt: new Date().toISOString(),
+                        scanId: state.lastScanId || `realtime_${Date.now()}`
+                    };
+                    const key = buildRecordKey(result);
+                    nextResultMap.set(key, result);
+                    changedKeys.push(key);
+                }));
 
-            const high = violations.filter(v => (v.severity || '').toLowerCase() === 'high').length;
-            const medium = violations.filter(v => (v.severity || '').toLowerCase() === 'medium').length;
-            const low = violations.filter(v => (v.severity || '').toLowerCase() === 'low').length;
-
-            if (summaryHigh) summaryHigh.textContent = high;
-            if (summaryMedium) summaryMedium.textContent = medium;
-            if (summaryLow) summaryLow.textContent = low;
-            if (summaryLastScan) summaryLastScan.textContent = scanTimestamp;
-            if (lastScanElement) lastScanElement.textContent = scanTimestamp;
-
-            if (!cardContainer) return;
-
-            if (!violations.length) {
-                cardContainer.innerHTML = '<div class="anomaly-empty">No compliance risks detected for selected payroll.</div>';
-                return;
+                state.resultMap = nextResultMap;
+                const allRecords = Array.from(state.payrollMap.values()).filter((record) => !state.monthFilter || record.month === state.monthFilter);
+                const results = Array.from(state.resultMap.values()).filter((result) => !state.monthFilter || result.month === state.monthFilter).sort(sortResults);
+                const summary = aggregateComplianceResults(allRecords, results, new Date().toISOString(), state.monthFilter);
+                renderComplianceDashboard({ summary, results, changedKeys: options.fullRefresh ? null : changedKeys });
+                updateComplianceWidgets();
+                setStatus('Completed', 'Compliance dashboard auto-updated from real-time payroll changes.', 'success');
             }
 
-            cardContainer.innerHTML = violations.map(violation => `
-                <div class="risk-card">
-                    <div class="risk-card__header">
-                        <span class="risk-label ${(violation.severity || 'low').toLowerCase()}">${(violation.severity || 'low').toUpperCase()} RISK</span>
-                        <span class="chart-card__subtitle">${violation.employeeId}</span>
-                    </div>
-                    <div class="insight-item__title">${violation.ruleId}</div>
-                    <div class="dashboard-tile__meta">${violation.description}</div>
-                    <div class="dashboard-tile__meta">Expected: ${violation.expected} · Actual: ${violation.actual}</div>
-                    <div class="dashboard-tile__meta">Impact: ${violation.impact}</div>
-                </div>
-            `).join('');
-        }
+            function scheduleRealtimeRebuild(changedRecords, options = {}) {
+                if (state.pendingRealtimeTimer) {
+                    clearTimeout(state.pendingRealtimeTimer);
+                }
+                state.pendingRealtimeTimer = setTimeout(() => {
+                    rerunForChangedRecords(changedRecords, options).catch((error) => {
+                        log('error', 'Realtime compliance refresh failed.', { message: error.message });
+                    });
+                }, 250);
+            }
 
+            function attachRealtimeListener() {
+                const firestore = getFirestoreContext();
+                if (!firestore || typeof firestore.fx.onSnapshot !== 'function') {
+                    log('warn', 'Realtime listener not attached because Firebase is unavailable.');
+                    return;
+                }
+
+                const { db, fx } = firestore;
+                const complianceQuery = fx.query(fx.collection(db, PAYROLL_COLLECTION), fx.where('type', '==', 'summary'));
+                state.unsubscribe = fx.onSnapshot(complianceQuery, (snapshot) => {
+                    const changedRecords = [];
+                    let requiresFullRefresh = false;
+                    snapshot.docChanges().forEach((change) => {
+                        const record = normalizePayrollRecord(change.doc.id, change.doc.data());
+                        const key = buildRecordKey(record);
+
+                        if (change.type === 'removed') {
+                            state.payrollMap.delete(key);
+                            state.resultMap.delete(key);
+                            requiresFullRefresh = true;
+                            return;
+                        }
+
+                        state.payrollMap.set(key, record);
+                        if (!state.monthFilter || record.month === state.monthFilter) {
+                            changedRecords.push(record);
+                        }
+                    });
+
+                    refreshMonthOptions(Array.from(state.payrollMap.values()));
+                    if (snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites) {
+                        return;
+                    }
+                    if (requiresFullRefresh) {
+                        const records = Array.from(state.payrollMap.values()).filter((record) => !state.monthFilter || record.month === state.monthFilter);
+                        scheduleRealtimeRebuild(records, { fullRefresh: true });
+                        return;
+                    }
+                    if (changedRecords.length) {
+                        scheduleRealtimeRebuild(changedRecords);
+                    }
+                }, (error) => {
+                    log('error', 'Realtime listener failed.', { message: error.message });
+                    setStatus('Error', `Realtime compliance listener failed: ${error.message}`, 'error');
+                });
+            }
+
+            function refreshMonthOptions(records = Array.from(state.payrollMap.values())) {
+                if (!state.dom.monthFilter) return;
+                const months = Array.from(new Set(records.map((record) => record.month).filter(Boolean))).sort().reverse();
+                const existingValue = state.dom.monthFilter.value || state.monthFilter || '';
+                state.dom.monthFilter.innerHTML = '<option value="">All Months</option>' + months.map((month) => `<option value="${escapeHtml(month)}">${escapeHtml(month)}</option>`).join('');
+                state.dom.monthFilter.value = months.includes(existingValue) || !existingValue ? existingValue : '';
+            }
+
+            function bindEvents() {
+                state.dom.runButton?.addEventListener('click', async () => {
+                    try {
+                        await runBulkComplianceScan({ month: getMonthValue() });
+                    } catch (error) {
+                        alert(`Compliance scan failed: ${error.message}`);
+                    }
+                });
+
+                state.dom.monthFilter?.addEventListener('change', async (event) => {
+                    state.monthFilter = event.target.value || '';
+                    try {
+                        await runBulkComplianceScan({ month: state.monthFilter });
+                    } catch (error) {
+                        alert(`Compliance filter refresh failed: ${error.message}`);
+                    }
+                });
+
+                state.dom.modalClose?.addEventListener('click', closeViolationModal);
+                state.dom.modal?.addEventListener('click', (event) => {
+                    if (event.target === state.dom.modal) {
+                        closeViolationModal();
+                    }
+                });
+            }
+
+            function init() {
+                if (state.initialized) return;
+                cacheDom();
+                bindEvents();
+                refreshMonthOptions([]);
+                setProgress(0, 0);
+                setStatus('Idle', 'Ready to scan payroll summaries.', 'neutral');
+                renderComplianceDashboard({ summary: buildEmptySummary(), results: [] });
+                attachRealtimeListener();
+                state.initialized = true;
+            }
+
+            function teardown() {
+                if (typeof state.unsubscribe === 'function') {
+                    state.unsubscribe();
+                }
+                if (state.pendingRealtimeTimer) {
+                    clearTimeout(state.pendingRealtimeTimer);
+                }
+                state.initialized = false;
+            }
+
+            return {
+                init,
+                teardown,
+                fetchPayrollSummaries,
+                evaluatePayrollRules,
+                computeRiskScore,
+                persistComplianceResults,
+                renderComplianceDashboard,
+                runBulkComplianceScan,
+                refreshMonthOptions,
+                getDashboardState,
+                openViolationModal
+            };
+        })();
+
+        window.ComplianceService = ComplianceService;
+        window.runBulkComplianceScan = (...args) => window.ComplianceService.runBulkComplianceScan(...args);
+        window.evaluatePayrollRules = (...args) => window.ComplianceService.evaluatePayrollRules(...args);
+        window.computeRiskScore = (...args) => window.ComplianceService.computeRiskScore(...args);
+        window.persistComplianceResults = (...args) => window.ComplianceService.persistComplianceResults(...args);
+        window.renderComplianceDashboard = (...args) => window.ComplianceService.renderComplianceDashboard(...args);
         async function savePayrollRunSnapshot({ period, paymentDate, records }) {
             if (!ensureFirebaseReady('payroll')) return;
 
