@@ -4851,9 +4851,7 @@
             setupAttendanceEventListeners();
             updatePayrollDates();
             loadCompanySettings();
-            if (window.ComplianceService?.refresh) {
-                window.ComplianceService.refresh();
-            }
+            await loadPayrollHistory();
 
             // Populate employee dropdowns
             populatePayrollEmployeeDropdown();
@@ -9180,10 +9178,41 @@ Employees: ${employeeSummary}`);
             document.getElementById('attendance-report-container').innerHTML = analyticsHtml;
         }
 
-        function loadPayrollHistory() {
-            console.warn("Legacy loadPayrollHistory() called — redirected to ComplianceService.");
-            if (window.ComplianceService?.refresh) {
-                window.ComplianceService.refresh();
+        async function loadPayrollHistory() {
+            if (!ensureFirebaseReady('payroll')) {
+                renderPayrollHistory([]);
+                return [];
+            }
+
+            try {
+                const { getDocs, collection, query, orderBy } = window.firestoreFunctions;
+                const payrollQuery = query(
+                    collection(window.firebaseDb, 'payrollRecords'),
+                    orderBy('generatedAt', 'desc')
+                );
+                const snapshot = await getDocs(payrollQuery);
+                const records = snapshot.docs
+                    .map(docSnap => ({
+                        id: docSnap.id,
+                        ...docSnap.data()
+                    }))
+                    .filter(record => record.type === 'summary');
+
+                payrollRecords = records;
+                localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
+                renderPayrollHistory(records);
+                updatePayrollSummary();
+                updateSyncStatus('payroll', 'synced');
+                setSyncError('payroll', '');
+                return records;
+            } catch (error) {
+                console.error('[Payroll] Failed to load payroll history:', error);
+                payrollRecords = [];
+                localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
+                renderPayrollHistory([]);
+                updateSyncStatus('payroll', 'error');
+                setSyncError('payroll', describeSyncError(error));
+                return [];
             }
         }
 
