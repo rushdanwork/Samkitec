@@ -2347,19 +2347,19 @@
         import {
             getFirestore,
             collection,
+            getDocs,
+            query,
+            addDoc,
+            serverTimestamp,
+            writeBatch,
             doc,
             setDoc,
+            orderBy,
             deleteDoc,
             updateDoc,
-            query,
             where,
             getDoc,
-            getDocs,
-            addDoc,
-            onSnapshot,
-            orderBy,
-            serverTimestamp,
-            writeBatch
+            onSnapshot
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import {
             getStorage,
@@ -2405,20 +2405,20 @@
             window.firebaseDb = db;
             window.firebaseStorage = storage;
             window.firestoreFunctions = {
+                getDocs,
                 collection,
+                query,
+                addDoc,
+                serverTimestamp,
+                writeBatch,
                 doc,
                 setDoc,
+                orderBy,
                 deleteDoc,
                 updateDoc,
-                query,
                 where,
                 getDoc,
-                getDocs,
-                addDoc,
                 onSnapshot,
-                orderBy,
-                serverTimestamp,
-                writeBatch
             };
             window.storageFunctions = {
                 storageRef,
@@ -2746,7 +2746,7 @@
         }
 
         // Login function
-        window.login = async function() {
+        async function login() {
             const email = document.getElementById("login-email").value;
             const password = document.getElementById("login-password").value;
             
@@ -2796,15 +2796,17 @@
                 alert(errorMessage);
             }
         }
+        window.login = login;
 
         // Logout function
-        window.logout = async function() {
+        async function logout() {
             try {
                 await signOut(auth);
             } catch (error) {
                 console.error("Logout error:", error);
             }
         }
+        window.logout = logout;
 
         // Auto login on page load (multi-device persistence)
         onAuthStateChanged(auth, async (user) => {
@@ -9282,7 +9284,6 @@ Employees: ${employeeSummary}`);
     <script src="./payrollAnomalyDetector.js"></script>
 </body>
 </html>
-
 
 
 
