@@ -2358,8 +2358,9 @@
             addDoc,
             onSnapshot,
             orderBy,
-            serverTimestamp
-        } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+            serverTimestamp,
+            writeBatch
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import {
             getStorage,
             ref as storageRef,
@@ -2416,7 +2417,8 @@
                 addDoc,
                 onSnapshot,
                 orderBy,
-                serverTimestamp
+                serverTimestamp,
+                writeBatch
             };
             window.storageFunctions = {
                 storageRef,
