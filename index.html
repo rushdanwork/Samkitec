@@ -8269,6 +8269,33 @@
             }
         }
 
+        function renderPayrollHistory(records = payrollRecords) {
+            const tbody = document.getElementById('payroll-history-table-body') || document.getElementById('payrollHistoryBody');
+            if (!tbody) return;
+
+            if (!records || !records.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="empty-state">
+                            No payroll records found.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = records.map(r => `
+                <tr>
+                    <td>${r.employeeId || '-'}</td>
+                    <td>${r.month || '-'}</td>
+                    <td>${r.gross || 0}</td>
+                    <td>${r.deductions || 0}</td>
+                    <td>${r.net || 0}</td>
+                    <td>${r.generatedAt ? new Date(r.generatedAt.seconds * 1000).toLocaleDateString() : '-'}</td>
+                </tr>
+            `).join('');
+        }
+
         async function savePayrollRecord() {
             const employeeId = document.getElementById('payrollEmployeeId').value;
             const employeeName = document.getElementById('payrollEmployeeName').value;
