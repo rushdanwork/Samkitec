@@ -2337,13 +2337,14 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-        import { 
-            getAuth, 
-            createUserWithEmailAndPassword, 
-            signInWithEmailAndPassword, 
-            onAuthStateChanged, 
-            signOut 
+        import {
+            getAuth,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            onAuthStateChanged,
+            signOut
         } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
         import {
             getFirestore,
             collection,
@@ -2354,15 +2355,14 @@
             writeBatch,
             doc,
             setDoc,
-            orderBy
-        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import {
+            orderBy,
             deleteDoc,
             updateDoc,
             where,
             getDoc,
             onSnapshot
-        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
         import {
             getStorage,
             ref as storageRef,
@@ -2371,19 +2371,38 @@
         } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
 
         const firebaseConfig = {
-             apiKey: "AIzaSyDytXwqVBTKJBBpTymDadTpmt8CR0LQSCM",
-  authDomain: "wagewise-payroll-e6a84.firebaseapp.com",
-  projectId: "wagewise-payroll-e6a84",
-  storageBucket: "wagewise-payroll-e6a84.firebasestorage.app",
-  messagingSenderId: "1077952021877",
-  appId: "1:1077952021877:web:6844674a44973506d2bf3c"
-};
+            apiKey: "AIzaSyDytXwqVBTKJBBpTymDadTpmt8CR0LQSCM",
+            authDomain: "wagewise-payroll-e6a84.firebaseapp.com",
+            projectId: "wagewise-payroll-e6a84",
+            storageBucket: "wagewise-payroll-e6a84.firebasestorage.app",
+            messagingSenderId: "1077952021877",
+            appId: "1:1077952021877:web:6844674a44973506d2bf3c"
+        };
 
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+
         window.firebaseDb = db;
+        window.firebaseAuth = auth;
+
+        window.firestoreFunctions = {
+            collection,
+            getDocs,
+            query,
+            addDoc,
+            serverTimestamp,
+            writeBatch,
+            doc,
+            setDoc,
+            orderBy,
+            deleteDoc,
+            updateDoc,
+            where,
+            getDoc,
+            onSnapshot
+        };
+
         console.log("window.firebaseDb set:", window.firebaseDb);
         const storage = getStorage(app);
         const firebaseState = {
@@ -2432,10 +2451,29 @@
         function clearAuthenticatedFirebaseContext() {
             firebaseState.user = null;
             window.firebaseUser = null;
-            window.firebaseAuth = null;
-            window.firebaseDb = null;
-            window.firestoreFunctions = null;
-            window.storageFunctions = null;
+            window.firebaseAuth = auth;
+            window.firebaseDb = db;
+            window.firestoreFunctions = {
+                collection,
+                getDocs,
+                query,
+                addDoc,
+                serverTimestamp,
+                writeBatch,
+                doc,
+                setDoc,
+                orderBy,
+                deleteDoc,
+                updateDoc,
+                where,
+                getDoc,
+                onSnapshot,
+            };
+            window.storageFunctions = {
+                storageRef,
+                uploadBytes,
+                getDownloadURL
+            };
         }
 
         clearAuthenticatedFirebaseContext();
@@ -7580,9 +7618,26 @@
                 if (!window.firebaseDb || !window.firestoreFunctions) {
                     return null;
                 }
+
+                const fx = {
+                    ...window.firestoreFunctions,
+                    writeBatch: window.firestoreFunctions.writeBatch || writeBatch,
+                    query: window.firestoreFunctions.query || query,
+                    where: window.firestoreFunctions.where || where,
+                    getDocs: window.firestoreFunctions.getDocs || getDocs,
+                    collection: window.firestoreFunctions.collection || collection,
+                    onSnapshot: window.firestoreFunctions.onSnapshot || onSnapshot,
+                    doc: window.firestoreFunctions.doc || doc,
+                    setDoc: window.firestoreFunctions.setDoc || setDoc,
+                };
+
+                if (typeof fx.writeBatch !== 'function') {
+                    return null;
+                }
+
                 return {
                     db: window.firebaseDb,
-                    fx: window.firestoreFunctions
+                    fx
                 };
             }
 
@@ -8242,6 +8297,18 @@
         window.computeRiskScore = (...args) => window.ComplianceService.computeRiskScore(...args);
         window.persistComplianceResults = (...args) => window.ComplianceService.persistComplianceResults(...args);
         window.renderComplianceDashboard = (...args) => window.ComplianceService.renderComplianceDashboard(...args);
+        function formatPayrollRunDate(value) {
+            if (!value) return '';
+            if (typeof value?.toDate === 'function') {
+                return value.toDate().toLocaleDateString();
+            }
+            if (typeof value?.seconds === 'number') {
+                return new Date(value.seconds * 1000).toLocaleDateString();
+            }
+            const parsed = new Date(value);
+            return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleDateString();
+        }
+
         async function savePayrollRunSnapshot({ period, paymentDate, records }) {
             if (!ensureFirebaseReady('payroll')) return;
 
@@ -8295,7 +8362,7 @@
                     <td>${r.gross || 0}</td>
                     <td>${r.deductions || 0}</td>
                     <td>${r.net || 0}</td>
-                    <td>${r.generatedAt ? new Date(r.generatedAt.seconds * 1000).toLocaleDateString() : '-'}</td>
+                    <td>${formatPayrollRunDate(r.generatedAt) || '-'}</td>
                 </tr>
             `).join('');
         }
