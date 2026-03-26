@@ -12,6 +12,7 @@ import runAttendanceFraudRules from './backend/complianceRules/attendanceFraudRu
 import runOvertimeRules from './backend/complianceRules/overtimeRules.js';
 import runSalaryAnomalyRules from './backend/complianceRules/salaryAnomalyRules.js';
 import { getPayrollForEmployee } from './payrollService.js';
+import { normalizePayrollRecord } from './payrollNormalization.js';
 
 const COLLECTIONS = {
   employees: 'employees',
@@ -35,6 +36,8 @@ const toNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
+
+const asNormalizedPayroll = (record) => (record ? normalizePayrollRecord(record) : null);
 
 const normalizeMonthInput = (monthInput, payrollRuns = []) => {
   if (!monthInput) return null;
@@ -94,8 +97,9 @@ const checkPfRule = ({ employee, payrollRecord }) => {
     });
   }
 
-  const basicSalary = toNumber(payrollRecord.basicSalary ?? payrollRecord.basic);
-  const pfDeduction = toNumber(payrollRecord.pf || payrollRecord.pfDeduction || payrollRecord.deductionsPF);
+  const normalizedPayroll = asNormalizedPayroll(payrollRecord);
+  const basicSalary = toNumber(payrollRecord.basicSalary ?? payrollRecord.basic ?? normalizedPayroll?.gross);
+  const pfDeduction = toNumber(normalizedPayroll?.pf || payrollRecord.pfDeduction || payrollRecord.deductionsPF);
   const requiredPf = basicSalary * 0.12;
   if (pfDeduction + 0.01 >= requiredPf) return null;
 
@@ -124,7 +128,8 @@ const checkEsiRule = ({ employee, payrollRecord }) => {
     });
   }
 
-  const esiDeduction = toNumber(payrollRecord.esi || payrollRecord.esiDeduction || payrollRecord.deductionsESI);
+  const normalizedPayroll = asNormalizedPayroll(payrollRecord);
+  const esiDeduction = toNumber(normalizedPayroll?.esi || payrollRecord.esiDeduction || payrollRecord.deductionsESI);
   if (esiDeduction > 0) return null;
 
   return buildViolation({
@@ -140,9 +145,10 @@ const checkEsiRule = ({ employee, payrollRecord }) => {
 
 const checkNetPayMismatchRule = ({ employee, payrollRecord }) => {
   if (!payrollRecord) return null;
-  const earnings = toNumber(payrollRecord.gross ?? payrollRecord.earnings) || (toNumber(payrollRecord.basicSalary ?? payrollRecord.basic) + toNumber(payrollRecord.hra) + toNumber(payrollRecord.allowances));
-  const deductions = toNumber(payrollRecord.deductions);
-  const net = toNumber(payrollRecord.netSalary ?? payrollRecord.netPay ?? payrollRecord.net);
+  const normalizedPayroll = asNormalizedPayroll(payrollRecord);
+  const earnings = toNumber(normalizedPayroll?.gross ?? payrollRecord.gross ?? payrollRecord.earnings) || (toNumber(payrollRecord.basicSalary ?? payrollRecord.basic) + toNumber(payrollRecord.hra) + toNumber(payrollRecord.allowances));
+  const deductions = toNumber(normalizedPayroll?.deductions ?? payrollRecord.deductions);
+  const net = toNumber(normalizedPayroll?.net ?? payrollRecord.netSalary ?? payrollRecord.netPay ?? payrollRecord.net);
   const expectedNet = earnings - deductions;
 
   if (Math.abs(expectedNet - net) < 0.5) return null;
@@ -161,8 +167,9 @@ const checkNetPayMismatchRule = ({ employee, payrollRecord }) => {
 const checkSalaryPaidForAbsentDaysRule = ({ employee, payrollRecord, attendanceSummary }) => {
   if (!payrollRecord || !attendanceSummary) return null;
   const absentDays = toNumber(attendanceSummary.absent);
-  const paidDays = toNumber(payrollRecord.paidDays || attendanceSummary.present);
-  const workingDays = toNumber(payrollRecord.workingDays || attendanceSummary.workingDays);
+  const normalizedPayroll = asNormalizedPayroll(payrollRecord);
+  const paidDays = toNumber(payrollRecord.paidDays || normalizedPayroll?.presentDays || attendanceSummary.present);
+  const workingDays = toNumber(normalizedPayroll?.workingDays || payrollRecord.workingDays || attendanceSummary.workingDays);
 
   if (!absentDays || paidDays < workingDays) return null;
 
@@ -435,9 +442,11 @@ const runComplianceScan = async (runIdMaybe = 'manual') => {
       const employeeId = getEmployeeId(employee);
       const attendanceSummary = attendanceByEmployee.get(employeeId);
       let payrollRecord = null;
+      let normalizedPayrollRecord = null;
 
       try {
         payrollRecord = await getPayrollForEmployee(employeeId, monthKey);
+        normalizedPayrollRecord = asNormalizedPayroll(payrollRecord);
       } catch (error) {
         console.error('[ComplianceEngine] Failed to fetch payroll record.', { employeeId, month: monthKey, error });
         violations.push(
@@ -483,11 +492,11 @@ const runComplianceScan = async (runIdMaybe = 'manual') => {
       }
 
       const checks = [
-        checkPfRule({ employee, payrollRecord }),
-        checkEsiRule({ employee, payrollRecord }),
-        checkNetPayMismatchRule({ employee, payrollRecord }),
-        checkSalaryPaidForAbsentDaysRule({ employee, payrollRecord, attendanceSummary }),
-        checkAttendanceVsWorkingDaysRule({ employee, payrollRecord, attendanceSummary }),
+        checkPfRule({ employee, payrollRecord: normalizedPayrollRecord || payrollRecord }),
+        checkEsiRule({ employee, payrollRecord: normalizedPayrollRecord || payrollRecord }),
+        checkNetPayMismatchRule({ employee, payrollRecord: normalizedPayrollRecord || payrollRecord }),
+        checkSalaryPaidForAbsentDaysRule({ employee, payrollRecord: normalizedPayrollRecord || payrollRecord, attendanceSummary }),
+        checkAttendanceVsWorkingDaysRule({ employee, payrollRecord: normalizedPayrollRecord || payrollRecord, attendanceSummary }),
         checkMissingStatutoryInfoRule({ employee }),
       ].filter(Boolean);
 

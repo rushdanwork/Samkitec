@@ -1,4 +1,5 @@
-import { savePayrollRun } from './payrollService.js';
+import { savePayrollRun, savePayrollRunSnapshot } from './payrollService.js';
+import { normalizePayrollRecord } from './payrollNormalization.js';
 
 export const buildPayrollRunPayload = ({
   month,
@@ -6,11 +7,9 @@ export const buildPayrollRunPayload = ({
   payrollData,
   status = 'Completed',
 }) => {
-  const employeeCount = payrollData.length;
-  const totalPayout = payrollData.reduce(
-    (sum, record) => sum + (Number(record.netSalary) || 0),
-    0
-  );
+  const normalizedPayrollData = (payrollData || []).map((record) => normalizePayrollRecord(record));
+  const employeeCount = normalizedPayrollData.length;
+  const totalPayout = normalizedPayrollData.reduce((sum, record) => sum + (Number(record.net) || 0), 0);
 
   return {
     month,
@@ -18,7 +17,8 @@ export const buildPayrollRunPayload = ({
     status,
     totalPayout,
     employeeCount,
-    payrollData,
+    payrollData: normalizedPayrollData,
+    type: 'run',
   };
 };
 
@@ -27,25 +27,31 @@ export const savePayroll = async ({ month, year, payrollData }) => {
     ? String(month).trim()
     : `${year}-${String(month).padStart(2, '0')}`;
 
+  const normalizedRecords = (payrollData || []).map((record) => ({
+    ...record,
+    ...normalizePayrollRecord({
+      ...record,
+      month: monthKey,
+      gross: record.gross ?? record.earnings,
+      net: record.net ?? record.netSalary ?? record.netPay,
+      pf: record.pf ?? record.pfDeduction,
+      esi: record.esi ?? record.esiDeduction,
+    }),
+  }));
+
   await Promise.all(
-    (payrollData || []).map((record) =>
+    normalizedRecords.map((record) =>
       savePayrollRun({
-        employeeId: record.employeeId,
-        month: monthKey,
+        ...record,
         basic: record.basic ?? record.basicSalary,
         hra: record.hra,
         allowances: record.allowances,
-        pf: record.pf ?? record.pfDeduction,
-        esi: record.esi ?? record.esiDeduction,
-        deductions: record.deductions,
-        gross: record.gross ?? record.earnings,
-        net: record.net ?? record.netSalary ?? record.netPay,
       })
     )
   );
 
-  const payload = buildPayrollRunPayload({ month, year, payrollData });
-  const payrollRunId = monthKey;
+  const payload = buildPayrollRunPayload({ month, year, payrollData: normalizedRecords });
+  const payrollRunId = await savePayrollRunSnapshot(payload);
   const runId = `run_${Date.now()}`;
 
   if (typeof window !== 'undefined') {
@@ -56,6 +62,9 @@ export const savePayroll = async ({ month, year, payrollData }) => {
       timestamp: Date.now(),
       payrollData: allEmployeePayrollResults,
       payrollRunId,
+      month: payload.month,
+      year: payload.year,
+      type: 'run',
     });
     localStorage.setItem('payrollRuns', JSON.stringify(runs));
 
