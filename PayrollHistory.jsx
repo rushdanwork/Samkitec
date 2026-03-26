@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 
 import { getFirestoreDb } from './firebaseService.js';
 import Header from './components/Header.jsx';
 
-const PAYROLL_COLLECTION = 'payrollRecords';
+const PAYROLL_RUNS_COLLECTION = 'payrollRuns';
+const PAYROLL_RECORDS_COLLECTION = 'payrollRecords';
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value || 0);
@@ -25,16 +26,19 @@ export default function PayrollHistory() {
 
   useEffect(() => {
     const db = getFirestoreDb();
-    const payrollQuery = query(
-      collection(db, PAYROLL_COLLECTION),
-      orderBy('generatedAt', 'desc')
-    );
+    let runsFromNewCollection = [];
+    let runsFromLegacyCollection = [];
 
-    const unsubscribe = onSnapshot(
-      payrollQuery,
+    const syncRuns = () => {
+      setPayrollRuns(runsFromNewCollection.length ? runsFromNewCollection : runsFromLegacyCollection);
+      setLoading(false);
+    };
+
+    const unsubscribeRuns = onSnapshot(
+      query(collection(db, PAYROLL_RUNS_COLLECTION), orderBy('generatedAt', 'desc')),
       (snapshot) => {
-        setPayrollRuns(snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
-        setLoading(false);
+        runsFromNewCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        syncRuns();
       },
       (err) => {
         setError(err.message || 'Failed to load payroll history.');
@@ -42,7 +46,25 @@ export default function PayrollHistory() {
       }
     );
 
-    return () => unsubscribe();
+    const unsubscribeLegacyRuns = onSnapshot(
+      query(
+        collection(db, PAYROLL_RECORDS_COLLECTION),
+        where('type', '==', 'run'),
+        orderBy('generatedAt', 'desc')
+      ),
+      (snapshot) => {
+        runsFromLegacyCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        syncRuns();
+      },
+      () => {
+        // Legacy fallback is optional; ignore errors to avoid breaking new collection reads.
+      }
+    );
+
+    return () => {
+      unsubscribeRuns();
+      unsubscribeLegacyRuns();
+    };
   }, []);
 
   if (loading) {

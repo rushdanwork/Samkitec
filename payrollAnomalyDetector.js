@@ -144,7 +144,9 @@
 
         payrollRecords.forEach(record => {
             const safeId = sanitize(record.employeeId);
-            if (record.netSalary < 0) {
+            const netAmount = Number(record.net ?? record.netSalary ?? record.netPay ?? 0);
+            const basicAmount = Number(record.basicSalary ?? record.basic ?? 0);
+            if (netAmount < 0) {
                 anomalies.push({
                     type: 'Salary Error',
                     employeeId: record.employeeId,
@@ -154,7 +156,7 @@
                 });
             }
 
-            const totalEarnings = (record.basicSalary || 0) + (record.allowances || 0);
+            const totalEarnings = (basicAmount || 0) + (Number(record.allowances || 0));
             if (record.deductions > totalEarnings) {
                 anomalies.push({
                     type: 'Salary Error',
@@ -198,9 +200,10 @@
             for (let i = 1; i < sorted.length; i++) {
                 const prev = sorted[i - 1];
                 const curr = sorted[i];
-                const previousNet = prev?.netSalary || 0;
+                const previousNet = Number(prev?.net ?? prev?.netSalary ?? prev?.netPay ?? 0);
                 if (!previousNet) continue;
-                const delta = (curr.netSalary - previousNet) / previousNet;
+                const currentNet = Number(curr?.net ?? curr?.netSalary ?? curr?.netPay ?? 0);
+                const delta = (currentNet - previousNet) / previousNet;
                 if (Math.abs(delta) > 0.25) {
                     anomalies.push({
                         type: 'Salary Error',

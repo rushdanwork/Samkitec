@@ -6,6 +6,7 @@ import runWageRules from './complianceRules/wageRules.js';
 import runAttendanceFraudRules from './complianceRules/attendanceFraudRules.js';
 import runOvertimeRules from './complianceRules/overtimeRules.js';
 import runSalaryAnomalyRules from './complianceRules/salaryAnomalyRules.js';
+import { normalizePayrollRecord } from '../payrollNormalization.js';
 
 const SEVERITY_POINTS = {
   Low: 10,
@@ -70,7 +71,7 @@ const normalizePayroll = (payrollRuns = []) => {
     const employeeId = record?.employeeId ?? record?.empId ?? record?.id;
     if (!employeeId) return;
     const list = grouped.get(employeeId) || [];
-    list.push({ ...record, employeeId });
+    list.push({ ...record, ...normalizePayrollRecord({ ...record, employeeId }) });
     grouped.set(employeeId, list);
   });
 

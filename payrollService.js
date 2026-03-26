@@ -10,13 +10,15 @@ import {
 } from 'firebase/firestore';
 
 import { getFirestoreDb, getServerTimestamp } from './firebaseService.js';
+import { normalizePayrollRecord, normalizePayrollRunSnapshot } from './payrollNormalization.js';
 
-const PAYROLL_COLLECTION = 'payrollRecords';
+const PAYROLL_SUMMARY_COLLECTION = 'payrollRecords';
+const PAYROLL_RUNS_COLLECTION = 'payrollRuns';
 
 export const listenPayrollRuns = (onSuccess, onError) => {
   const db = getFirestoreDb();
   const payrollQuery = query(
-    collection(db, PAYROLL_COLLECTION),
+    collection(db, PAYROLL_RUNS_COLLECTION),
     orderBy('generatedAt', 'desc')
   );
 
@@ -37,31 +39,58 @@ export const listenPayrollRuns = (onSuccess, onError) => {
 
 export const savePayrollRun = async (payload) => {
   const db = getFirestoreDb();
-  const employeeId = String(payload.employeeId || '').trim();
-  const month = String(payload.month || '').trim();
+  const normalized = normalizePayrollRecord(payload);
+  const employeeId = normalized.employeeId;
+  const month = normalized.month;
 
   if (!employeeId || !month) {
     throw new Error('savePayrollRun requires both employeeId and month.');
   }
 
   const docId = `${employeeId}_${month}`;
-  const payrollRef = doc(db, PAYROLL_COLLECTION, docId);
+  const payrollRef = doc(db, PAYROLL_SUMMARY_COLLECTION, docId);
   const payrollRecord = {
-    employeeId,
-    month,
+    ...normalized,
     basic: Number(payload.basic ?? payload.basicSalary ?? 0),
     hra: Number(payload.hra ?? 0),
     allowances: Number(payload.allowances ?? 0),
-    pf: Number(payload.pf ?? 0),
-    esi: Number(payload.esi ?? 0),
-    deductions: Number(payload.deductions ?? 0),
-    gross: Number(payload.gross ?? payload.earnings ?? 0),
-    net: Number(payload.net ?? payload.netSalary ?? payload.netPay ?? 0),
     generatedAt: getServerTimestamp(),
   };
 
   await setDoc(payrollRef, payrollRecord, { merge: true });
   return docId;
+};
+
+export const savePayrollRunSnapshot = async (payload = {}) => {
+  const db = getFirestoreDb();
+  const monthInput = String(payload.month || '').trim();
+  const yearInput = String(payload.year || '').trim();
+
+  let runId = '';
+  let month = monthInput;
+  let year = yearInput;
+
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(monthInput)) {
+    runId = monthInput;
+    year = monthInput.slice(0, 4);
+    month = monthInput.slice(5, 7);
+  } else if (monthInput && yearInput) {
+    month = monthInput.padStart(2, '0');
+    runId = `${yearInput}-${month}`;
+  }
+
+  if (!runId) {
+    throw new Error('savePayrollRunSnapshot requires month and year.');
+  }
+
+  const runRef = doc(db, PAYROLL_RUNS_COLLECTION, runId);
+  const runPayload = {
+    ...normalizePayrollRunSnapshot({ ...payload, month, year }),
+    generatedAt: getServerTimestamp(),
+  };
+
+  await setDoc(runRef, runPayload, { merge: true });
+  return runId;
 };
 
 export const getPayrollForEmployee = async (employeeId, month) => {
@@ -73,7 +102,7 @@ export const getPayrollForEmployee = async (employeeId, month) => {
     throw new Error('getPayrollForEmployee requires both employeeId and month.');
   }
 
-  const payrollRef = doc(db, PAYROLL_COLLECTION, `${safeEmployeeId}_${safeMonth}`);
+  const payrollRef = doc(db, PAYROLL_SUMMARY_COLLECTION, `${safeEmployeeId}_${safeMonth}`);
   const snapshot = await getDoc(payrollRef);
 
   if (!snapshot.exists()) return null;
@@ -83,5 +112,5 @@ export const getPayrollForEmployee = async (employeeId, month) => {
 
 export const deletePayrollRun = async (runId) => {
   const db = getFirestoreDb();
-  await deleteDoc(doc(db, PAYROLL_COLLECTION, runId));
+  await deleteDoc(doc(db, PAYROLL_SUMMARY_COLLECTION, runId));
 };

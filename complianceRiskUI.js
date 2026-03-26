@@ -165,9 +165,17 @@
 
     const loadPayrollRuns = async () => {
         if (!window.firebaseDb || !window.firestoreFunctions) return [];
-        const { collection, getDocs, orderBy, query } = window.firestoreFunctions;
-        const snapshot = await getDocs(query(collection(window.firebaseDb, 'payrollRecords'), orderBy('generatedAt', 'desc')));
-        return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        const { collection, getDocs, orderBy, query, where } = window.firestoreFunctions;
+
+        const runSnapshot = await getDocs(query(collection(window.firebaseDb, 'payrollRuns'), orderBy('generatedAt', 'desc')));
+        if (!runSnapshot.empty) {
+            return runSnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        }
+
+        const legacySnapshot = await getDocs(
+            query(collection(window.firebaseDb, 'payrollRecords'), where('type', '==', 'run'), orderBy('generatedAt', 'desc'))
+        );
+        return legacySnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
     };
 
     const bindInteractions = (state, renderMonth) => {

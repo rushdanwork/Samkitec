@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 
 import { getFirestoreDb, listenComplianceSummary } from './firebaseService.js';
 import Header from './components/Header.jsx';
 
-const PAYROLL_COLLECTION = 'payrollRecords';
+const PAYROLL_RUNS_COLLECTION = 'payrollRuns';
+const PAYROLL_RECORDS_COLLECTION = 'payrollRecords';
 const ATTENDANCE_COLLECTION = 'attendanceRecords';
 const EMPLOYEES_COLLECTION = 'employees';
 const normalizeDateKey = (date = new Date()) => date.toISOString().split('T')[0];
@@ -27,11 +28,33 @@ export default function Dashboard() {
     const db = getFirestoreDb();
     const unsubscribers = [];
 
+    let runsFromNewCollection = [];
+    let runsFromLegacyCollection = [];
+    const syncRuns = () => {
+      const source = runsFromNewCollection.length ? runsFromNewCollection : runsFromLegacyCollection;
+      setPayrollRuns(source);
+    };
+
     unsubscribers.push(
       onSnapshot(
-        query(collection(db, PAYROLL_COLLECTION), orderBy('generatedAt', 'desc')),
+        query(collection(db, PAYROLL_RUNS_COLLECTION), orderBy('generatedAt', 'desc')),
         (snapshot) => {
-          setPayrollRuns(snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
+          runsFromNewCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+          syncRuns();
+        }
+      )
+    );
+
+    unsubscribers.push(
+      onSnapshot(
+        query(
+          collection(db, PAYROLL_RECORDS_COLLECTION),
+          where('type', '==', 'run'),
+          orderBy('generatedAt', 'desc')
+        ),
+        (snapshot) => {
+          runsFromLegacyCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+          syncRuns();
         }
       )
     );
