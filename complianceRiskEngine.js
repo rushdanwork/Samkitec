@@ -29,6 +29,19 @@ const scanState = {
 };
 
 const ensureFirebaseReady = () => Boolean(window.firebaseDb && window.firestoreFunctions);
+const getCurrentUserId = () => window.firebaseAuth?.currentUser?.uid || window.currentUserId || null;
+const userCollectionRef = (db, collectionName) => {
+  const { collection } = window.firestoreFunctions;
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error('Missing authenticated user context.');
+  return collection(db, 'users', userId, collectionName);
+};
+const userDocRef = (db, collectionName, ...segments) => {
+  const { doc } = window.firestoreFunctions;
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error('Missing authenticated user context.');
+  return doc(db, 'users', userId, collectionName, ...segments);
+};
 const toLowerSeverity = (value = 'Low') => String(value).trim().toLowerCase();
 const severityRank = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
 
@@ -245,8 +258,10 @@ const summarizeAttendanceByEmployeeForMonth = (records = {}, monthKey) => {
 
 
 const deleteExistingComplianceEventsForMonth = async (db, monthKey) => {
-  const { collection, getDocs, query, where, writeBatch } = window.firestoreFunctions;
-  const snapshot = await getDocs(query(collection(db, COLLECTIONS.complianceEvents), where('scanMonth', '==', monthKey)));
+  const { getDocs, query, where, writeBatch } = window.firestoreFunctions;
+  const snapshot = await getDocs(
+    query(userCollectionRef(db, COLLECTIONS.complianceEvents), where('scanMonth', '==', monthKey))
+  );
   if (snapshot.empty) return;
 
   let batch = writeBatch(db);
@@ -266,14 +281,14 @@ const deleteExistingComplianceEventsForMonth = async (db, monthKey) => {
 };
 
 const fetchCollectionAsArray = async (db, collectionName) => {
-  const { collection, getDocs } = window.firestoreFunctions;
-  const snapshot = await getDocs(collection(db, collectionName));
+  const { getDocs } = window.firestoreFunctions;
+  const snapshot = await getDocs(userCollectionRef(db, collectionName));
   return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
 };
 
 const fetchAttendanceAsObject = async (db) => {
-  const { collection, getDocs } = window.firestoreFunctions;
-  const snapshot = await getDocs(collection(db, COLLECTIONS.attendance));
+  const { getDocs } = window.firestoreFunctions;
+  const snapshot = await getDocs(userCollectionRef(db, COLLECTIONS.attendance));
   const records = {};
   snapshot.forEach((docSnap) => {
     records[docSnap.id] = docSnap.data();
@@ -349,9 +364,9 @@ const buildEmployeeRuleResults = ({ employee, payrollRecord, payrollHistory, att
 };
 
 const writeEmployeeComplianceResult = async ({ db, runId, employeeId, summary, rules }) => {
-  const { doc, setDoc, serverTimestamp } = window.firestoreFunctions;
-  const summaryRef = doc(db, COLLECTIONS.complianceResults, runId, employeeId, 'summary');
-  const rulesRef = doc(db, COLLECTIONS.complianceResults, runId, employeeId, 'rules');
+  const { setDoc, serverTimestamp } = window.firestoreFunctions;
+  const summaryRef = userDocRef(db, COLLECTIONS.complianceResults, runId, employeeId, 'summary');
+  const rulesRef = userDocRef(db, COLLECTIONS.complianceResults, runId, employeeId, 'rules');
 
   try {
     await Promise.all([
@@ -365,9 +380,9 @@ const writeEmployeeComplianceResult = async ({ db, runId, employeeId, summary, r
 };
 
 const writeLegacySummary = async ({ db, employeeId, summary, allViolations }) => {
-  const { doc, setDoc, serverTimestamp } = window.firestoreFunctions;
-  const summaryRef = doc(db, COLLECTIONS.complianceViolationsLegacy, employeeId);
-  const violationsRef = doc(db, COLLECTIONS.complianceViolationsLegacy, employeeId, 'violations', 'list');
+  const { setDoc, serverTimestamp } = window.firestoreFunctions;
+  const summaryRef = userDocRef(db, COLLECTIONS.complianceViolationsLegacy, employeeId);
+  const violationsRef = userDocRef(db, COLLECTIONS.complianceViolationsLegacy, employeeId, 'violations', 'list');
 
   await Promise.all([
     setDoc(
@@ -409,7 +424,7 @@ const runComplianceScan = async (runIdMaybe = 'manual') => {
   }
 
   const db = window.firebaseDb;
-  const { collection, doc, serverTimestamp, writeBatch } = window.firestoreFunctions;
+  const { doc, serverTimestamp, writeBatch } = window.firestoreFunctions;
 
   scanState.inProgress = true;
 
@@ -510,7 +525,7 @@ const runComplianceScan = async (runIdMaybe = 'manual') => {
       let ops = 0;
       for (const violation of violations) {
         const docId = `${monthKey}_${violation.employeeId}_${violation.ruleId}`;
-        batch.set(doc(collection(db, COLLECTIONS.complianceEvents), docId), {
+        batch.set(doc(userCollectionRef(db, COLLECTIONS.complianceEvents), docId), {
           ...violation,
           scanMonth: monthKey,
           createdAt: serverTimestamp(),

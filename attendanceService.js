@@ -1,13 +1,13 @@
-import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { onSnapshot, setDoc } from 'firebase/firestore';
 
-import { getFirestoreDb } from './firebaseService.js';
+import { getFirestoreDb, getUserScopedCollectionRef, getUserScopedDocRef } from './firebaseService.js';
 
 const ATTENDANCE_COLLECTION = 'attendanceRecords';
 
-export const listenAttendanceRecords = (onSuccess, onError) => {
-  const db = getFirestoreDb();
+export const listenAttendanceRecords = (onSuccess, onError, userId) => {
+  getFirestoreDb();
   return onSnapshot(
-    collection(db, ATTENDANCE_COLLECTION),
+    getUserScopedCollectionRef(ATTENDANCE_COLLECTION, userId),
     (snapshot) => {
       const records = {};
       snapshot.forEach((docSnap) => {
@@ -21,7 +21,7 @@ export const listenAttendanceRecords = (onSuccess, onError) => {
   );
 };
 
-export const saveAttendanceRecord = async (dateKey, record) => {
-  const db = getFirestoreDb();
-  await setDoc(doc(db, ATTENDANCE_COLLECTION, dateKey), record);
+export const saveAttendanceRecord = async (dateKey, record, userId) => {
+  getFirestoreDb();
+  await setDoc(getUserScopedDocRef(ATTENDANCE_COLLECTION, dateKey, userId), record);
 };

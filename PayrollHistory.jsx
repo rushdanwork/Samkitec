@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { onSnapshot, orderBy, query, where } from 'firebase/firestore';
 
-import { getFirestoreDb } from './firebaseService.js';
+import { getFirestoreDb, getUserScopedCollectionRef, listenToAuthState } from './firebaseService.js';
 import Header from './components/Header.jsx';
 
 const PAYROLL_RUNS_COLLECTION = 'payrollRuns';
@@ -25,45 +25,63 @@ export default function PayrollHistory() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const db = getFirestoreDb();
-    let runsFromNewCollection = [];
-    let runsFromLegacyCollection = [];
+    getFirestoreDb();
+    let dataUnsubscribers = [];
 
-    const syncRuns = () => {
-      setPayrollRuns(runsFromNewCollection.length ? runsFromNewCollection : runsFromLegacyCollection);
-      setLoading(false);
-    };
+    const unsubscribeAuth = listenToAuthState(({ userId }) => {
+      dataUnsubscribers.forEach((unsubscribe) => unsubscribe());
+      dataUnsubscribers = [];
+      setPayrollRuns([]);
+      setError('');
 
-    const unsubscribeRuns = onSnapshot(
-      query(collection(db, PAYROLL_RUNS_COLLECTION), orderBy('generatedAt', 'desc')),
-      (snapshot) => {
-        runsFromNewCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-        syncRuns();
-      },
-      (err) => {
-        setError(err.message || 'Failed to load payroll history.');
+      if (!userId) {
         setLoading(false);
+        return;
       }
-    );
 
-    const unsubscribeLegacyRuns = onSnapshot(
-      query(
-        collection(db, PAYROLL_RECORDS_COLLECTION),
-        where('type', '==', 'run'),
-        orderBy('generatedAt', 'desc')
-      ),
-      (snapshot) => {
-        runsFromLegacyCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-        syncRuns();
-      },
-      () => {
-        // Legacy fallback is optional; ignore errors to avoid breaking new collection reads.
-      }
-    );
+      let runsFromNewCollection = [];
+      let runsFromLegacyCollection = [];
+
+      const syncRuns = () => {
+        setPayrollRuns(runsFromNewCollection.length ? runsFromNewCollection : runsFromLegacyCollection);
+        setLoading(false);
+      };
+
+      dataUnsubscribers.push(
+        onSnapshot(
+          query(getUserScopedCollectionRef(PAYROLL_RUNS_COLLECTION, userId), orderBy('generatedAt', 'desc')),
+          (snapshot) => {
+            runsFromNewCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+            syncRuns();
+          },
+          (err) => {
+            setError(err.message || 'Failed to load payroll history.');
+            setLoading(false);
+          }
+        )
+      );
+
+      dataUnsubscribers.push(
+        onSnapshot(
+          query(
+            getUserScopedCollectionRef(PAYROLL_RECORDS_COLLECTION, userId),
+            where('type', '==', 'run'),
+            orderBy('generatedAt', 'desc')
+          ),
+          (snapshot) => {
+            runsFromLegacyCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+            syncRuns();
+          },
+          () => {
+            // Legacy fallback is optional; ignore errors to avoid breaking new collection reads.
+          }
+        )
+      );
+    });
 
     return () => {
-      unsubscribeRuns();
-      unsubscribeLegacyRuns();
+      unsubscribeAuth();
+      dataUnsubscribers.forEach((unsubscribe) => unsubscribe());
     };
   }, []);
 
