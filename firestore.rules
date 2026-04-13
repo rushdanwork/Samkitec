@@ -5,6 +5,34 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /employees/{employeeId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /attendanceRecords/{recordId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /payrollRecords/{recordId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /payrollRuns/{runId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
     match /expenses/{expenseId} {
       allow read, write: if signedIn();
     }

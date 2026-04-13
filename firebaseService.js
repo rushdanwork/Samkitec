@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import {
   collection,
   doc,
@@ -16,6 +16,7 @@ import {
 let firebaseApp;
 let firestoreDb;
 let firebaseAuth;
+let currentUserId = null;
 
 export const initializeFirebase = (config) => {
   if (!firebaseApp) {
@@ -42,9 +43,65 @@ export const getAuthService = () => {
 
 export const getServerTimestamp = () => serverTimestamp();
 
-const COMPLIANCE_COLLECTION = 'complianceViolations';
-export const saveComplianceReport = async (employeeId, summary, violations) => {
+const USERS_COLLECTION = 'users';
+const getRequiredUserId = (userId) => {
+  const resolvedUserId = userId || currentUserId;
+  if (!resolvedUserId) {
+    throw new Error('Authenticated user is required for this operation.');
+  }
+  return resolvedUserId;
+};
+
+export const getCurrentUserId = () => currentUserId;
+
+export const getUserScopedCollectionRef = (collectionName, userId) => {
   const db = getFirestoreDb();
+  const resolvedUserId = getRequiredUserId(userId);
+  return collection(db, USERS_COLLECTION, resolvedUserId, collectionName);
+};
+
+export const getUserScopedDocRef = (collectionName, docId, userId) => {
+  const db = getFirestoreDb();
+  const resolvedUserId = getRequiredUserId(userId);
+  return doc(db, USERS_COLLECTION, resolvedUserId, collectionName, docId);
+};
+
+export const ensureUserWorkspace = async (userId) => {
+  const db = getFirestoreDb();
+  const resolvedUserId = getRequiredUserId(userId);
+  const userRef = doc(db, USERS_COLLECTION, resolvedUserId);
+  const userSnapshot = await getDoc(userRef);
+
+  if (!userSnapshot.exists()) {
+    await setDoc(userRef, {
+      createdAt: getServerTimestamp(),
+      isInitialized: true,
+    });
+  }
+};
+
+export const listenToAuthState = (onSuccess, onError) => {
+  const auth = getAuthService();
+  return onAuthStateChanged(
+    auth,
+    async (user) => {
+      currentUserId = user?.uid || null;
+      if (currentUserId) {
+        await ensureUserWorkspace(currentUserId);
+      }
+      if (onSuccess) {
+        onSuccess({ user, userId: currentUserId });
+      }
+    },
+    (error) => {
+      if (onError) onError(error);
+    }
+  );
+};
+
+const COMPLIANCE_COLLECTION = 'complianceViolations';
+export const saveComplianceReport = async (employeeId, summary, violations, userId) => {
+  const scopedUserId = getRequiredUserId(userId);
   const summaryObject = {
     summary: {
       ...summary,
@@ -52,8 +109,8 @@ export const saveComplianceReport = async (employeeId, summary, violations) => {
       lastEvaluated: getServerTimestamp(),
     },
   };
-  const summaryRef = doc(db, COMPLIANCE_COLLECTION, employeeId);
-  const violationsRef = doc(db, COMPLIANCE_COLLECTION, employeeId, 'violations', 'list');
+  const summaryRef = getUserScopedDocRef(COMPLIANCE_COLLECTION, employeeId, scopedUserId);
+  const violationsRef = doc(summaryRef, 'violations', 'list');
   let violationsArray = [];
 
   try {
@@ -73,16 +130,14 @@ export const saveComplianceReport = async (employeeId, summary, violations) => {
   await setDoc(violationsRef, { list: violationsArray });
 };
 
-export const getComplianceReports = async () => {
-  const db = getFirestoreDb();
-  const snapshot = await getDocs(collection(db, COMPLIANCE_COLLECTION));
+export const getComplianceReports = async (userId) => {
+  const snapshot = await getDocs(getUserScopedCollectionRef(COMPLIANCE_COLLECTION, userId));
   return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
 };
 
-export const listenComplianceReports = (onSuccess, onError) => {
-  const db = getFirestoreDb();
+export const listenComplianceReports = (onSuccess, onError, userId) => {
   return onSnapshot(
-    collection(db, COMPLIANCE_COLLECTION),
+    getUserScopedCollectionRef(COMPLIANCE_COLLECTION, userId),
     (snapshot) => {
       const reports = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
       onSuccess(reports);
@@ -93,18 +148,18 @@ export const listenComplianceReports = (onSuccess, onError) => {
   );
 };
 
-export const listenComplianceSummary = (onSuccess, onError) =>
-  listenComplianceReports(onSuccess, onError);
+export const listenComplianceSummary = (onSuccess, onError, userId) =>
+  listenComplianceReports(onSuccess, onError, userId);
 
 const DIAGNOSTICS_COLLECTION = 'connectivityDiagnostics';
 const REALTIME_COLLECTION = 'attendanceRecords';
 const EXPENSES_COLLECTION = 'expenses';
 
 export const runTestWriteRead = async (testDocId) => {
-  const db = getFirestoreDb();
   const auth = getAuthService();
+  const userId = getRequiredUserId(auth?.currentUser?.uid);
   const docId = testDocId || `diagnostic_${Date.now()}`;
-  const docRef = doc(db, DIAGNOSTICS_COLLECTION, docId);
+  const docRef = getUserScopedDocRef(DIAGNOSTICS_COLLECTION, docId, userId);
   const payload = {
     createdAt: getServerTimestamp(),
     uid: auth?.currentUser?.uid || null,
@@ -131,13 +186,13 @@ export const runTestWriteRead = async (testDocId) => {
 };
 
 export const testRealtimeListener = async () => {
-  const db = getFirestoreDb();
+  const userId = getRequiredUserId();
   let unsubscribe = () => {};
   let timeoutId;
 
   const listenPromise = new Promise((resolve) => {
     unsubscribe = onSnapshot(
-      collection(db, REALTIME_COLLECTION),
+      getUserScopedCollectionRef(REALTIME_COLLECTION, userId),
       (snap) => {
         console.log('[RealtimeTest] Listener triggered. Docs:', snap.size);
         unsubscribe();
@@ -165,9 +220,8 @@ export const testRealtimeListener = async () => {
 };
 
 export const listenExpenseRecords = (onSuccess, onError) => {
-  const db = getFirestoreDb();
   return onSnapshot(
-    query(collection(db, EXPENSES_COLLECTION), orderBy('createdAt', 'desc')),
+    query(getUserScopedCollectionRef(EXPENSES_COLLECTION), orderBy('createdAt', 'desc')),
     (snapshot) => {
       const records = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
       onSuccess(records);

@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { onSnapshot, orderBy, query, where } from 'firebase/firestore';
 
-import { getFirestoreDb, listenComplianceSummary } from './firebaseService.js';
+import {
+  getFirestoreDb,
+  getUserScopedCollectionRef,
+  listenComplianceSummary,
+  listenToAuthState,
+} from './firebaseService.js';
 import Header from './components/Header.jsx';
 
 const PAYROLL_RUNS_COLLECTION = 'payrollRuns';
@@ -25,66 +30,89 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const db = getFirestoreDb();
-    const unsubscribers = [];
+    getFirestoreDb();
+    let dataUnsubscribers = [];
 
-    let runsFromNewCollection = [];
-    let runsFromLegacyCollection = [];
-    const syncRuns = () => {
-      const source = runsFromNewCollection.length ? runsFromNewCollection : runsFromLegacyCollection;
-      setPayrollRuns(source);
+    const resetUiState = () => {
+      setPayrollRuns([]);
+      setAttendanceRecords({});
+      setEmployees([]);
+      setComplianceReports([]);
     };
 
-    unsubscribers.push(
-      onSnapshot(
-        query(collection(db, PAYROLL_RUNS_COLLECTION), orderBy('generatedAt', 'desc')),
-        (snapshot) => {
-          runsFromNewCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-          syncRuns();
-        }
-      )
-    );
+    const unsubscribeAuth = listenToAuthState(({ userId }) => {
+      dataUnsubscribers.forEach((unsubscribe) => unsubscribe());
+      dataUnsubscribers = [];
+      resetUiState();
 
-    unsubscribers.push(
-      onSnapshot(
-        query(
-          collection(db, PAYROLL_RECORDS_COLLECTION),
-          where('type', '==', 'run'),
-          orderBy('generatedAt', 'desc')
-        ),
-        (snapshot) => {
-          runsFromLegacyCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-          syncRuns();
-        }
-      )
-    );
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
 
-    unsubscribers.push(
-      onSnapshot(collection(db, ATTENDANCE_COLLECTION), (snapshot) => {
-        const records = {};
-        snapshot.forEach((docSnap) => {
-          records[docSnap.id] = docSnap.data();
-        });
-        setAttendanceRecords(records);
-      })
-    );
+      let runsFromNewCollection = [];
+      let runsFromLegacyCollection = [];
+      const syncRuns = () => {
+        const source = runsFromNewCollection.length ? runsFromNewCollection : runsFromLegacyCollection;
+        setPayrollRuns(source);
+      };
 
-    unsubscribers.push(
-      onSnapshot(collection(db, EMPLOYEES_COLLECTION), (snapshot) => {
-        setEmployees(snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
-      })
-    );
+      dataUnsubscribers.push(
+        onSnapshot(
+          query(getUserScopedCollectionRef(PAYROLL_RUNS_COLLECTION, userId), orderBy('generatedAt', 'desc')),
+          (snapshot) => {
+            runsFromNewCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+            syncRuns();
+          }
+        )
+      );
 
-    unsubscribers.push(
-      listenComplianceSummary((reports) => {
-        setComplianceReports(reports);
-      })
-    );
+      dataUnsubscribers.push(
+        onSnapshot(
+          query(
+            getUserScopedCollectionRef(PAYROLL_RECORDS_COLLECTION, userId),
+            where('type', '==', 'run'),
+            orderBy('generatedAt', 'desc')
+          ),
+          (snapshot) => {
+            runsFromLegacyCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+            syncRuns();
+          }
+        )
+      );
 
-    setLoading(false);
+      dataUnsubscribers.push(
+        onSnapshot(getUserScopedCollectionRef(ATTENDANCE_COLLECTION, userId), (snapshot) => {
+          const records = {};
+          snapshot.forEach((docSnap) => {
+            records[docSnap.id] = docSnap.data();
+          });
+          setAttendanceRecords(records);
+        })
+      );
+
+      dataUnsubscribers.push(
+        onSnapshot(getUserScopedCollectionRef(EMPLOYEES_COLLECTION, userId), (snapshot) => {
+          setEmployees(snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
+        })
+      );
+
+      dataUnsubscribers.push(
+        listenComplianceSummary(
+          (reports) => {
+            setComplianceReports(reports);
+          },
+          undefined,
+          userId
+        )
+      );
+
+      setLoading(false);
+    });
 
     return () => {
-      unsubscribers.forEach((unsubscribe) => unsubscribe());
+      unsubscribeAuth();
+      dataUnsubscribers.forEach((unsubscribe) => unsubscribe());
     };
   }, []);
 
@@ -142,6 +170,11 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-50">
       <Header />
       <main className="px-6 py-8">
+        {employees.length === 0 && (
+          <div className="mb-6 rounded-lg border border-slate-200 bg-white px-4 py-3 text-slate-700">
+            No employees added yet. Start by adding your first employee.
+          </div>
+        )}
         <div className="dashboard-grid">
           <div className="dashboard-card">
             <h4>Total Employees</h4>
