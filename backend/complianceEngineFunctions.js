@@ -182,6 +182,14 @@ const calculateComplianceScore = (risks = []) => {
   return Math.max(0, 100 - Math.min(scorePenalty, 100));
 };
 
+const toPayrollMonth = (value) => {
+  const raw = String(value || "").trim();
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(raw)) return raw;
+  return toMonthKey();
+};
+
+const round2 = (value) => Math.round((toNumber(value) + Number.EPSILON) * 100) / 100;
+
 const buildComplianceReport = ({ payroll, employees, declarations, regimeSelections, stateSlabs }) => {
   const risks = [
     ...tdsEngine({ payroll, declarations, regimeSelections }),
@@ -231,6 +239,67 @@ export const runComplianceDeepScan = onCall(async (request) => {
   await notifyHrIfCritical(report);
 
   return report;
+});
+
+export const finalizePayroll = onCall(async (request) => {
+  const userId = request.auth?.uid;
+  if (!userId) {
+    throw new Error("unauthenticated");
+  }
+
+  const month = toPayrollMonth(request.data?.month);
+  const year = month.slice(0, 4);
+  const monthNum = month.slice(5, 7);
+  const employeesRef = db.collection("users").doc(userId).collection("employees");
+  const payrollRecordsRef = db.collection("users").doc(userId).collection("payrollRecords");
+  const payrollRunsRef = db.collection("users").doc(userId).collection("payrollRuns");
+  const employeesSnap = await employeesRef.get();
+
+  const batch = db.batch();
+  const records = [];
+
+  employeesSnap.forEach((employeeDoc) => {
+    const employee = employeeDoc.data() || {};
+    const employeeId = employeeDoc.id;
+    const basic = round2(employee.basic ?? employee.basicSalary ?? 0);
+    const hra = round2(employee.hra ?? basic * 0.4);
+    const allowances = round2(employee.allowances ?? 0);
+    const gross = round2(basic + hra + allowances);
+    const pf = round2(employee.pfEligible === false ? 0 : basic * 0.12);
+    const esi = round2(employee.esiEligible === false ? 0 : gross * 0.0075);
+    const net = round2(gross - pf - esi);
+
+    const record = {
+      employeeId,
+      month,
+      basic,
+      hra,
+      allowances,
+      gross,
+      pf,
+      esi,
+      net,
+      createdAt: new Date(),
+    };
+    records.push(record);
+    batch.set(payrollRecordsRef.doc(`${employeeId}_${month}`), record, { merge: true });
+  });
+
+  const runId = `${month}_${Date.now()}`;
+  const runPayload = {
+    id: runId,
+    month,
+    year,
+    monthNum,
+    generatedAt: new Date(),
+    status: "Completed",
+    employeeCount: records.length,
+    totalPayout: round2(records.reduce((sum, item) => sum + toNumber(item.net), 0)),
+  };
+  batch.set(payrollRunsRef.doc(runId), runPayload, { merge: false });
+  await batch.commit();
+
+  return { runId, run: runPayload, records };
 });
 
 export const scheduledComplianceDeepScan = onSchedule(

@@ -23,6 +23,7 @@ const parseTimestamp = (value) => {
 };
 
 export default function Dashboard() {
+  const selectedMonth = new Date().toISOString().slice(0, 7);
   const [payrollRuns, setPayrollRuns] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState({});
   const [employees, setEmployees] = useState([]);
@@ -59,7 +60,11 @@ export default function Dashboard() {
 
       dataUnsubscribers.push(
         onSnapshot(
-          query(getUserScopedCollectionRef(PAYROLL_RUNS_COLLECTION, userId), orderBy('generatedAt', 'desc')),
+          query(
+            getUserScopedCollectionRef(PAYROLL_RUNS_COLLECTION, userId),
+            where('month', '==', selectedMonth),
+            orderBy('generatedAt', 'desc')
+          ),
           (snapshot) => {
             runsFromNewCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
             syncRuns();
@@ -71,7 +76,7 @@ export default function Dashboard() {
         onSnapshot(
           query(
             getUserScopedCollectionRef(PAYROLL_RECORDS_COLLECTION, userId),
-            where('type', '==', 'run'),
+            where('month', '==', selectedMonth),
             orderBy('generatedAt', 'desc')
           ),
           (snapshot) => {
@@ -85,7 +90,7 @@ export default function Dashboard() {
         onSnapshot(getUserScopedCollectionRef(ATTENDANCE_COLLECTION, userId), (snapshot) => {
           const records = {};
           snapshot.forEach((docSnap) => {
-            records[docSnap.id] = docSnap.data();
+            records[docSnap.id] = docSnap.data()?.records || {};
           });
           setAttendanceRecords(records);
         })
@@ -114,7 +119,7 @@ export default function Dashboard() {
       unsubscribeAuth();
       dataUnsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, []);
+  }, [selectedMonth]);
 
   const metrics = useMemo(() => {
     const totalEmployees = employees.length;
@@ -172,7 +177,7 @@ export default function Dashboard() {
       <main className="px-6 py-8">
         {employees.length === 0 && (
           <div className="mb-6 rounded-lg border border-slate-200 bg-white px-4 py-3 text-slate-700">
-            No employees added yet. Start by adding your first employee.
+            No data yet. Start by adding employees.
           </div>
         )}
         <div className="dashboard-grid">

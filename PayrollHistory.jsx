@@ -20,6 +20,7 @@ const formatDate = (value) => {
 };
 
 export default function PayrollHistory() {
+  const selectedMonth = new Date().toISOString().slice(0, 7);
   const [payrollRuns, setPayrollRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -49,7 +50,11 @@ export default function PayrollHistory() {
 
       dataUnsubscribers.push(
         onSnapshot(
-          query(getUserScopedCollectionRef(PAYROLL_RUNS_COLLECTION, userId), orderBy('generatedAt', 'desc')),
+          query(
+            getUserScopedCollectionRef(PAYROLL_RUNS_COLLECTION, userId),
+            where('month', '==', selectedMonth),
+            orderBy('generatedAt', 'desc')
+          ),
           (snapshot) => {
             runsFromNewCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
             syncRuns();
@@ -65,7 +70,7 @@ export default function PayrollHistory() {
         onSnapshot(
           query(
             getUserScopedCollectionRef(PAYROLL_RECORDS_COLLECTION, userId),
-            where('type', '==', 'run'),
+            where('month', '==', selectedMonth),
             orderBy('generatedAt', 'desc')
           ),
           (snapshot) => {
@@ -83,7 +88,7 @@ export default function PayrollHistory() {
       unsubscribeAuth();
       dataUnsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, []);
+  }, [selectedMonth]);
 
   if (loading) {
     return <div className="payroll-history__empty">Loading payroll history…</div>;

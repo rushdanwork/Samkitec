@@ -1,4 +1,4 @@
-import { savePayrollRun, savePayrollRunSnapshot } from './payrollService.js';
+import { finalizePayrollRun } from './payrollService.js';
 import { normalizePayrollRecord } from './payrollNormalization.js';
 
 export const buildPayrollRunPayload = ({
@@ -26,36 +26,17 @@ export const savePayroll = async ({ month, year, payrollData }) => {
   const monthKey = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(month || '').trim())
     ? String(month).trim()
     : `${year}-${String(month).padStart(2, '0')}`;
-
-  const normalizedRecords = (payrollData || []).map((record) => ({
-    ...record,
-    ...normalizePayrollRecord({
-      ...record,
-      month: monthKey,
-      gross: record.gross ?? record.earnings,
-      net: record.net ?? record.netSalary ?? record.netPay,
-      pf: record.pf ?? record.pfDeduction,
-      esi: record.esi ?? record.esiDeduction,
-    }),
-  }));
-
-  await Promise.all(
-    normalizedRecords.map((record) =>
-      savePayrollRun({
-        ...record,
-        basic: record.basic ?? record.basicSalary,
-        hra: record.hra,
-        allowances: record.allowances,
-      })
-    )
-  );
-
-  const payload = buildPayrollRunPayload({ month, year, payrollData: normalizedRecords });
-  const payrollRunId = await savePayrollRunSnapshot(payload);
+  const result = await finalizePayrollRun({ month: monthKey });
+  const payload = buildPayrollRunPayload({
+    month: result?.run?.month || month,
+    year: result?.run?.year || year,
+    payrollData: result?.records || payrollData || [],
+  });
+  const payrollRunId = result?.runId || result?.run?.id || monthKey;
   const runId = `run_${Date.now()}`;
 
   if (typeof window !== 'undefined') {
-    const allEmployeePayrollResults = payload.payrollData;
+    const allEmployeePayrollResults = payload.payrollData || [];
     let runs = JSON.parse(localStorage.getItem('payrollRuns')) || [];
     runs.push({
       runId,

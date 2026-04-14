@@ -10,18 +10,24 @@ const toMonthKey = (value) => {
 };
 
 export function normalizePayrollRecord(record = {}) {
+  const basic = toNumber(record.basic ?? record.basicSalary ?? 0);
+  const hra = toNumber(record.hra ?? 0);
+  const allowances = toNumber(record.allowances ?? 0);
+  const gross = toNumber(record.gross ?? record.earnings ?? basic + hra + allowances);
+  const pf = toNumber(record.pf ?? record.pfDeduction ?? 0);
+  const esi = toNumber(record.esi ?? record.esiDeduction ?? 0);
+  const net = toNumber(record.net ?? gross - pf - esi);
   return {
     employeeId: String(record.employeeId || record.empId || record.id || '').trim(),
     month: toMonthKey(record.month || record.period || ''),
-    gross: toNumber(record.gross ?? record.earnings ?? record.totalEarnings ?? 0),
-    net: toNumber(record.net ?? record.netSalary ?? record.netPay ?? 0),
-    deductions: toNumber(record.deductions ?? 0),
-    pf: toNumber(record.pf ?? record.pfDeduction ?? record.deductionsPF ?? 0),
-    esi: toNumber(record.esi ?? record.esiDeduction ?? record.deductionsESI ?? 0),
-    workingDays: toNumber(record.workingDays ?? 0),
-    presentDays: toNumber(record.presentDays ?? record.paidDays ?? 0),
-    generatedAt: record.generatedAt || record.createdAt || null,
-    type: 'summary',
+    basic,
+    hra,
+    allowances,
+    gross,
+    pf,
+    esi,
+    net,
+    createdAt: record.createdAt || record.generatedAt || null,
   };
 }
 
