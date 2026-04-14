@@ -23,5 +23,6 @@ export const listenAttendanceRecords = (onSuccess, onError, userId) => {
 
 export const saveAttendanceRecord = async (dateKey, record, userId) => {
   getFirestoreDb();
-  await setDoc(getUserScopedDocRef(ATTENDANCE_COLLECTION, dateKey, userId), record);
+  const nextRecords = record?.records && typeof record.records === 'object' ? record.records : {};
+  await setDoc(getUserScopedDocRef(ATTENDANCE_COLLECTION, dateKey, userId), { records: nextRecords });
 };

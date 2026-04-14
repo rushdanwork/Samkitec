@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getFunctions } from 'firebase/functions';
 import {
   collection,
   doc,
@@ -16,6 +17,7 @@ import {
 let firebaseApp;
 let firestoreDb;
 let firebaseAuth;
+let firebaseFunctions;
 let currentUserId = null;
 
 export const initializeFirebase = (config) => {
@@ -23,8 +25,9 @@ export const initializeFirebase = (config) => {
     firebaseApp = initializeApp(config);
     firestoreDb = getFirestore(firebaseApp);
     firebaseAuth = getAuth(firebaseApp);
+    firebaseFunctions = getFunctions(firebaseApp);
   }
-  return { app: firebaseApp, db: firestoreDb, auth: firebaseAuth };
+  return { app: firebaseApp, db: firestoreDb, auth: firebaseAuth, functions: firebaseFunctions };
 };
 
 export const getFirestoreDb = () => {
@@ -39,6 +42,13 @@ export const getAuthService = () => {
     throw new Error('Firebase has not been initialized. Call initializeFirebase first.');
   }
   return firebaseAuth;
+};
+
+export const getFunctionsService = () => {
+  if (!firebaseFunctions) {
+    throw new Error('Firebase has not been initialized. Call initializeFirebase first.');
+  }
+  return firebaseFunctions;
 };
 
 export const getServerTimestamp = () => serverTimestamp();
@@ -187,36 +197,20 @@ export const runTestWriteRead = async (testDocId) => {
 
 export const testRealtimeListener = async () => {
   const userId = getRequiredUserId();
-  let unsubscribe = () => {};
-  let timeoutId;
+  const docRef = getUserScopedDocRef(DIAGNOSTICS_COLLECTION, `ping_${Date.now()}`, userId);
+  const timeoutMs = 5000;
 
-  const listenPromise = new Promise((resolve) => {
-    unsubscribe = onSnapshot(
-      getUserScopedCollectionRef(REALTIME_COLLECTION, userId),
-      (snap) => {
-        console.log('[RealtimeTest] Listener triggered. Docs:', snap.size);
-        unsubscribe();
-        resolve(true);
-      },
-      (error) => {
-        console.warn('[RealtimeTest] Listener error:', error);
-        unsubscribe();
-        resolve(false);
-      }
-    );
-  });
+  const probePromise = (async () => {
+    await setDoc(docRef, { createdAt: getServerTimestamp(), type: 'connectivityProbe' }, { merge: true });
+    const snapshot = await getDoc(docRef);
+    return snapshot.exists();
+  })();
 
   const timeoutPromise = new Promise((resolve) => {
-    timeoutId = setTimeout(() => {
-      console.warn('[RealtimeTest] Listener timed out.');
-      unsubscribe();
-      resolve(false);
-    }, 5000);
+    setTimeout(() => resolve(false), timeoutMs);
   });
 
-  const result = await Promise.race([listenPromise, timeoutPromise]);
-  clearTimeout(timeoutId);
-  return result;
+  return Promise.race([probePromise, timeoutPromise]);
 };
 
 export const listenExpenseRecords = (onSuccess, onError) => {
