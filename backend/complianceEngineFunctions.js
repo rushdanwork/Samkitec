@@ -204,11 +204,11 @@ const buildComplianceReport = ({ payroll, employees, declarations, regimeSelecti
   };
 };
 
-const notifyHrIfCritical = async ({ risks }) => {
+const notifyHrIfCritical = async ({ risks, userId }) => {
   const critical = risks.filter((risk) => risk.severity === "critical" || risk.severity === "high");
-  if (critical.length === 0) return;
+  if (critical.length === 0 || !userId) return;
 
-  await db.collection("notifications").add({
+  await db.collection("users").doc(userId).collection("notifications").add({
     type: "COMPLIANCE_ALERT",
     message: `Critical compliance risks detected (${critical.length}).` ,
     riskLevel: "high",
@@ -217,8 +217,12 @@ const notifyHrIfCritical = async ({ risks }) => {
 };
 
 export const runComplianceDeepScan = onCall(async (request) => {
-  const payrollSnapshot = await db.collection("payrollRecords").get();
-  const employeesSnapshot = await db.collection("employees").get();
+  const userId = request.auth?.uid;
+  if (!userId) {
+    throw new Error("unauthenticated");
+  }
+  const payrollSnapshot = await db.collection("users").doc(userId).collection("payrollRecords").get();
+  const employeesSnapshot = await db.collection("users").doc(userId).collection("employees").get();
 
   const payroll = payrollSnapshot.docs.flatMap((doc) => {
     const data = doc.data();
@@ -230,13 +234,13 @@ export const runComplianceDeepScan = onCall(async (request) => {
   const report = buildComplianceReport({ payroll, employees });
   const month = toMonthKey();
 
-  await db.collection("complianceScans").doc(month).set({
+  await db.collection("users").doc(userId).collection("complianceScans").doc(month).set({
     score: report.score,
     scannedAt: new Date(),
     risks: report.risks,
   });
 
-  await notifyHrIfCritical(report);
+  await notifyHrIfCritical({ ...report, userId });
 
   return report;
 });
@@ -308,25 +312,30 @@ export const scheduledComplianceDeepScan = onSchedule(
     timeZone: "Asia/Kolkata",
   },
   async () => {
-    const payrollSnapshot = await db.collection("payrollRecords").get();
-    const employeesSnapshot = await db.collection("employees").get();
+    const usersSnapshot = await db.collection("users").get();
 
-    const payroll = payrollSnapshot.docs.flatMap((doc) => {
-      const data = doc.data();
-      const payrollData = Array.isArray(data.payrollData) ? data.payrollData : [];
-      return payrollData.map((record) => ({ ...record, payrollRunId: doc.id }));
-    });
-    const employees = employeesSnapshot.docs.map((doc) => ({ employeeId: doc.id, ...doc.data() }));
+    await Promise.all(usersSnapshot.docs.map(async (userDoc) => {
+      const userId = userDoc.id;
+      const payrollSnapshot = await db.collection("users").doc(userId).collection("payrollRecords").get();
+      const employeesSnapshot = await db.collection("users").doc(userId).collection("employees").get();
 
-    const report = buildComplianceReport({ payroll, employees });
-    const month = toMonthKey();
+      const payroll = payrollSnapshot.docs.flatMap((doc) => {
+        const data = doc.data();
+        const payrollData = Array.isArray(data.payrollData) ? data.payrollData : [];
+        return payrollData.map((record) => ({ ...record, payrollRunId: doc.id }));
+      });
+      const employees = employeesSnapshot.docs.map((doc) => ({ employeeId: doc.id, ...doc.data() }));
 
-    await db.collection("complianceScans").doc(month).set({
-      score: report.score,
-      scannedAt: new Date(),
-      risks: report.risks,
-    });
+      const report = buildComplianceReport({ payroll, employees });
+      const month = toMonthKey();
 
-    await notifyHrIfCritical(report);
+      await db.collection("users").doc(userId).collection("complianceScans").doc(month).set({
+        score: report.score,
+        scannedAt: new Date(),
+        risks: report.risks,
+      });
+
+      await notifyHrIfCritical({ ...report, userId });
+    }));
   }
 );
