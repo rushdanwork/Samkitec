@@ -2516,11 +2516,18 @@
                 return false;
             }
 
+            if (!currentUserId) {
+                const message = 'Sign in to run the Firebase connectivity test.';
+                setFirebaseConnectionState('warning', message);
+                if (showAlerts) alert(message);
+                return false;
+            }
+
             try {
                 setFirebaseConnectionState('checking', 'Contacting Firebase services...');
                 await new Promise((resolve, reject) => {
                     const unsubscribe = onSnapshot(
-                        collection(db, 'users'),
+                        doc(db, 'users', currentUserId),
                         () => {
                             unsubscribe();
                             resolve();
@@ -2614,6 +2621,7 @@
 
         async function runTestWriteRead(testDocId) {
             if (!db) return { testWrite: false, testRead: false, docId: null };
+            if (!currentUserId) return { testWrite: false, testRead: false, docId: null };
             const docId = testDocId || `diagnostic_${Date.now()}`;
             const docRef = doc(db, 'connectivityDiagnostics', docId);
             const payload = {
@@ -2684,6 +2692,10 @@
                 testRead: false,
                 realtimeListener: false
             };
+
+            if (!currentUserId) {
+                return result;
+            }
 
             try {
                 if (!db || !auth) {
@@ -4969,13 +4981,17 @@
 
         // Enhanced Firebase Sync Functions
         function getUserCollectionRef(collectionName) {
-            if (!currentUserId) return null;
-            return collection(window.firebaseDb, 'users', currentUserId, collectionName);
+            if (!currentUserId) {
+                throw new Error("User not authenticated");
+            }
+            return collection(db, 'users', currentUserId, collectionName);
         }
 
         function getUserDocRef(collectionName, docId) {
-            if (!currentUserId) return null;
-            return doc(window.firebaseDb, 'users', currentUserId, collectionName, docId);
+            if (!currentUserId) {
+                throw new Error("User not authenticated");
+            }
+            return doc(db, 'users', currentUserId, collectionName, docId);
         }
 
         async function startRealtimeListeners() {
@@ -7637,7 +7653,7 @@
             }
 
             function getFirestoreContext() {
-                if (!window.firebaseDb || !window.firestoreFunctions) {
+                if (!currentUserId || !window.firebaseDb || !window.firestoreFunctions) {
                     return null;
                 }
 
@@ -7785,6 +7801,7 @@
 
             // Data Fetch Layer
             async function fetchPayrollSummaries(month = '') {
+                if (!currentUserId) return [];
                 const firestore = getFirestoreContext();
                 if (!firestore) {
                     throw new Error('Firebase not ready');
@@ -7796,7 +7813,7 @@
                     constraints.push(fx.where('month', '==', month));
                 }
 
-                const payrollQuery = fx.query(fx.collection(db, PAYROLL_COLLECTION), ...constraints);
+                const payrollQuery = fx.query(fx.collection(db, 'users', currentUserId, PAYROLL_COLLECTION), ...constraints);
                 const snapshot = await fx.getDocs(payrollQuery);
                 return snapshot.docs.map((docSnap) => normalizePayrollRecord(docSnap.id, docSnap.data()));
             }
