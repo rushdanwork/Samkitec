@@ -4698,7 +4698,26 @@
     <script type="module" src="./backend/expenseRecordService.js"></script>
     <script type="module" src="./expenseRecordUI.js"></script>
     <script src="payrollAnomalyDetector.js"></script>
-    <script>
+    <script type="module">
+        import {
+            getFirestore,
+            collection,
+            doc,
+            query,
+            where,
+            onSnapshot,
+            getDocs,
+            addDoc,
+            serverTimestamp,
+            setDoc,
+            orderBy,
+            deleteDoc,
+            updateDoc,
+            getDoc
+        } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+        const db = window.firebaseDb || getFirestore();
+
         const EMPLOYEE_STORAGE_KEY = 'employees';
         const ILLEGAL_ID_CHARS = /[\/\\\?#%\.\[\]]/g;
         let employees = [];
@@ -9394,7 +9413,7 @@ Employees: ${employeeSummary}`);
     </script>
 
     <script src="./complianceRulesIndia.js"></script>
-    <script src="./complianceRiskUI.js"></script>
+    <script type="module" src="./complianceRiskUI.js"></script>
     <script src="./payrollAnomalyDetector.js"></script>
 </body>
 </html>
