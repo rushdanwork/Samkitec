@@ -2872,7 +2872,7 @@
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 setAuthenticatedFirebaseContext(user);
-                updateExpenseNavVisibility();
+                window.updateExpenseNavVisibility?.();
                 console.log("User logged in:", user.email);
                 document.getElementById('logged-in-user').textContent = user.email;
                 stopRealtimeListeners();
@@ -2889,7 +2889,7 @@
             } else {
                 clearAuthenticatedFirebaseContext();
                 console.log("No user logged in.");
-                updateExpenseNavVisibility();
+                window.updateExpenseNavVisibility?.();
                 stopRealtimeListeners();
                 resetAppState();
                 const splashScreen = document.getElementById('splash-screen');
@@ -5440,6 +5440,7 @@
             if (!expenseMenu) return;
             expenseMenu.style.display = canManageExpenses() ? '' : 'none';
         }
+        window.updateExpenseNavVisibility = updateExpenseNavVisibility;
 
         // Enhanced Navigation between sections
         function showSection(sectionId) {
