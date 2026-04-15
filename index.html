@@ -2880,12 +2880,18 @@
                 // Hide login page and show application
                 document.getElementById('login-page').style.display = 'none';
                 document.getElementById('app-container').style.display = 'none';
-                showSplashScreen(async () => {
+                const handlePostLoginInitialization = async () => {
                     document.getElementById('app-container').style.display = 'flex';
                     setFirebaseConnectionState('success', 'Authenticated with Firebase.');
                     await initializeApplication();
                     await startRealtimeListeners();
-                });
+                };
+
+                if (typeof showSplashScreen === "function") {
+                    showSplashScreen(handlePostLoginInitialization);
+                } else {
+                    handlePostLoginInitialization();
+                }
             } else {
                 clearAuthenticatedFirebaseContext();
                 console.log("No user logged in.");
@@ -4938,6 +4944,7 @@
                 }
             }, 2000);
         }
+        window.showSplashScreen = showSplashScreen;
 
         // Initialize the application
         async function initializeApplication() {
