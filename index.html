@@ -5272,6 +5272,9 @@
                             requestDashboardRefresh('payroll');
                         }
 
+                        if (window.ComplianceService) {
+                            window.ComplianceService.isScanning = false;
+                        }
                         if (window.ComplianceService && typeof window.ComplianceService.runPayrollRules === "function") {
                             window.ComplianceService.runPayrollRules({
                                 employees: window.employees || [],
@@ -6348,7 +6351,6 @@
                 leaveDays: absentDays + (halfDay * 0.5)
             };
 
-            await savePayrollSummary(normalizedEmployee, payrollMonth, summary);
             await loadPayrollHistory();
         }
 
@@ -8184,16 +8186,12 @@
                     log('warn', 'Scan ignored due to active execution.', { isScanning: state.isScanning, scanDebounceUntil: state.scanDebounceUntil, now });
                     return getDashboardState();
                 }
-                if (now < state.scanDebounceUntil) {
-                    console.log('Debounce active but allowing scan');
-                }
-
-                state.scanDebounceUntil = now + 1200;
-                state.lastScanId = `scan_${now}`;
-                setScanningState(true);
-                setStatus('Running', 'Compliance scan is running across payroll summaries.', 'running');
-
                 try {
+                    setScanningState(true);
+                    state.scanDebounceUntil = now + 1200;
+                    state.lastScanId = `scan_${now}`;
+                    setStatus('Running', 'Compliance scan is running across payroll summaries.', 'running');
+
                     const records = await fetchPayrollSummaries(month);
                     state.payrollMap = new Map(records.map((record) => [buildRecordKey(record), record]));
                     refreshMonthOptions(records);
@@ -8416,6 +8414,12 @@
                 renderComplianceDashboard,
                 runBulkComplianceScan,
                 runPayrollRules,
+                get isScanning() {
+                    return state.isScanning;
+                },
+                set isScanning(value) {
+                    setScanningState(Boolean(value));
+                },
                 refreshMonthOptions,
                 getDashboardState,
                 openViolationModal
