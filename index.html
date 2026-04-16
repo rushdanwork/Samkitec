@@ -5233,13 +5233,17 @@
                 const { collection, onSnapshot } = window.firestoreFunctions;
 
                 payrollUnsub = onSnapshot(
-                    getUserCollectionRef(PAYROLL_COLLECTION),
+                    collection(db, 'users', currentUserId, 'payrollRecords'),
                     (snapshot) => {
                         console.log('[Payroll] Snapshot success.', { count: snapshot.size });
-                        const firebasePayroll = snapshot.docs.map(docSnap => ({
-                            id: docSnap.id,
-                            ...docSnap.data()
-                        }));
+                        const firebasePayroll = snapshot.docs.map(docSnap => {
+                            const data = docSnap.data() || {};
+                            return {
+                                id: docSnap.id,
+                                ...data,
+                                month: normalizePayrollMonth(data.month)
+                            };
+                        });
                         const recordDocs = firebasePayroll.filter(doc => doc.type !== 'run');
                         const runDocs = firebasePayroll.filter(doc => doc.type === 'run');
 
@@ -5272,13 +5276,15 @@
                             requestDashboardRefresh('payroll');
                         }
 
+                        console.log('Payroll data:', window.payroll);
+
                         if (window.ComplianceService) {
                             window.ComplianceService.isScanning = false;
                         }
-                        if (window.ComplianceService && typeof window.ComplianceService.runPayrollRules === "function") {
+                        if (window.ComplianceService && window.payroll.length > 0 && typeof window.ComplianceService.runPayrollRules === "function") {
                             window.ComplianceService.runPayrollRules({
                                 employees: window.employees || [],
-                                payroll: window.payroll || [],
+                                payroll: window.payroll,
                                 attendance: window.attendance || []
                             });
                         }
@@ -5763,16 +5769,10 @@
         }
 
         function normalizePayrollMonth(month) {
-            if (!month) return '';
-            const normalized = String(month).trim();
-            if (!normalized) return '';
-
-            if (normalized.includes('-')) {
-                const [year, m] = normalized.split('-');
-                return `${year}-${String(m).padStart(2, '0')}`;
-            }
-
-            return normalized;
+            const normalized = String(month || '').trim();
+            if (!normalized || !normalized.includes('-')) return normalized;
+            const [year, m] = normalized.split('-');
+            return `${year}-${String(m).padStart(2, '0')}`;
         }
 
         function showEmployeeForm(editingId = '') {
