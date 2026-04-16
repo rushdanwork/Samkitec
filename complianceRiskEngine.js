@@ -111,8 +111,8 @@ const checkPfRule = ({ employee, payrollRecord }) => {
   }
 
   const normalizedPayroll = asNormalizedPayroll(payrollRecord);
-  const basicSalary = toNumber(payrollRecord.basicSalary ?? payrollRecord.basic ?? normalizedPayroll?.gross);
-  const pfDeduction = toNumber(normalizedPayroll?.pf || payrollRecord.pfDeduction || payrollRecord.deductionsPF);
+  const basicSalary = toNumber(normalizedPayroll?.basic ?? payrollRecord.basic);
+  const pfDeduction = toNumber(normalizedPayroll?.pf ?? payrollRecord.pf);
   const requiredPf = basicSalary * 0.12;
   if (pfDeduction + 0.01 >= requiredPf) return null;
 
@@ -142,7 +142,7 @@ const checkEsiRule = ({ employee, payrollRecord }) => {
   }
 
   const normalizedPayroll = asNormalizedPayroll(payrollRecord);
-  const esiDeduction = toNumber(normalizedPayroll?.esi || payrollRecord.esiDeduction || payrollRecord.deductionsESI);
+  const esiDeduction = toNumber(normalizedPayroll?.esi ?? payrollRecord.esi);
   if (esiDeduction > 0) return null;
 
   return buildViolation({
@@ -159,9 +159,9 @@ const checkEsiRule = ({ employee, payrollRecord }) => {
 const checkNetPayMismatchRule = ({ employee, payrollRecord }) => {
   if (!payrollRecord) return null;
   const normalizedPayroll = asNormalizedPayroll(payrollRecord);
-  const earnings = toNumber(normalizedPayroll?.gross ?? payrollRecord.gross ?? payrollRecord.earnings) || (toNumber(payrollRecord.basicSalary ?? payrollRecord.basic) + toNumber(payrollRecord.hra) + toNumber(payrollRecord.allowances));
+  const earnings = toNumber(normalizedPayroll?.gross ?? payrollRecord.gross) || (toNumber(payrollRecord.basic) + toNumber(payrollRecord.hra) + toNumber(payrollRecord.allowances));
   const deductions = toNumber(normalizedPayroll?.deductions ?? payrollRecord.deductions);
-  const net = toNumber(normalizedPayroll?.net ?? payrollRecord.netSalary ?? payrollRecord.netPay ?? payrollRecord.net);
+  const net = toNumber(normalizedPayroll?.net ?? payrollRecord.net);
   const expectedNet = earnings - deductions;
 
   if (Math.abs(expectedNet - net) < 0.5) return null;
