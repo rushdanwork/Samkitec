@@ -5246,6 +5246,7 @@
                         if (snapshot.empty) {
                             payrollRecords = [];
                             payrollRuns = [];
+                            window.payroll = [];
                             localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
                             localStorage.setItem('payrollRuns', JSON.stringify(payrollRuns));
                             renderPayrollHistory();
@@ -5269,6 +5270,14 @@
                             }
                             updateSalaryTrendChart();
                             requestDashboardRefresh('payroll');
+                        }
+
+                        if (window.ComplianceService && typeof window.ComplianceService.runPayrollRules === "function") {
+                            window.ComplianceService.runPayrollRules({
+                                employees: window.employees || [],
+                                payroll: window.payroll || [],
+                                attendance: window.attendance || []
+                            });
                         }
 
                         updateSyncStatus('payroll', 'synced');
@@ -8171,9 +8180,12 @@
                 const month = options.month ?? getMonthValue();
                 state.monthFilter = month || '';
                 const now = Date.now();
-                if (state.isScanning || now < state.scanDebounceUntil) {
-                    log('warn', 'Scan ignored due to debounce or active execution.', { isScanning: state.isScanning, scanDebounceUntil: state.scanDebounceUntil, now });
+                if (state.isScanning) {
+                    log('warn', 'Scan ignored due to active execution.', { isScanning: state.isScanning, scanDebounceUntil: state.scanDebounceUntil, now });
                     return getDashboardState();
+                }
+                if (now < state.scanDebounceUntil) {
+                    console.log('Debounce active but allowing scan');
                 }
 
                 state.scanDebounceUntil = now + 1200;
@@ -8218,6 +8230,25 @@
                     log('error', 'Bulk compliance scan failed.', { message: error.message });
                     setStatus('Error', `Compliance scan failed: ${error.message}`, 'error');
                     throw error;
+                } finally {
+                    setScanningState(false);
+                }
+            }
+
+            async function runPayrollRules(payload = {}) {
+                if (Array.isArray(payload.employees)) {
+                    window.employees = payload.employees;
+                }
+                if (Array.isArray(payload.payroll)) {
+                    window.payroll = payload.payroll;
+                }
+                if (Array.isArray(payload.attendance)) {
+                    window.attendance = payload.attendance;
+                }
+                try {
+                    return await runBulkComplianceScan({
+                        month: payload.month || state.monthFilter || getMonthValue()
+                    });
                 } finally {
                     setScanningState(false);
                 }
@@ -8384,6 +8415,7 @@
                 persistComplianceResults,
                 renderComplianceDashboard,
                 runBulkComplianceScan,
+                runPayrollRules,
                 refreshMonthOptions,
                 getDashboardState,
                 openViolationModal
