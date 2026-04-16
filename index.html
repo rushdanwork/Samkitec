@@ -5669,7 +5669,6 @@
             // Sync button
             document.getElementById('sync-payroll-btn').addEventListener('click', function() {
                 syncEmployeesWithFirebase();
-                savePayrollRun(generateFinalPayrollData());
             });
         }
 
@@ -5749,6 +5748,19 @@
             const rawId = emp?.employeeId || emp?.id || '';
             const employeeId = sanitizeId(rawId);
             return { ...emp, employeeId, id: employeeId };
+        }
+
+        function normalizePayrollMonth(month) {
+            if (!month) return '';
+            const normalized = String(month).trim();
+            if (!normalized) return '';
+
+            if (normalized.includes('-')) {
+                const [year, m] = normalized.split('-');
+                return `${year}-${String(m).padStart(2, '0')}`;
+            }
+
+            return normalized;
         }
 
         function showEmployeeForm(editingId = '') {
@@ -7345,6 +7357,12 @@
 
         // Dashboard Functions
         function loadDashboardData() {
+            const setDashboardText = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.textContent = value;
+                }
+            };
             console.log('[Dashboard] Render start.', {
                 employees: employees.length,
                 payrollRecords: payrollRecords.length,
@@ -7374,10 +7392,10 @@
 
             const attendanceRate = activeEmployees ? Math.round((todayPresent / activeEmployees) * 100) : 0;
 
-            document.getElementById('tile-total-employees').textContent = totalEmployees;
-            document.getElementById('tile-active-employees').textContent = `${activeEmployees} active`;
-            document.getElementById('tile-attendance-today').textContent = todayPresent;
-            document.getElementById('tile-attendance-meta').textContent = `${attendanceRate}% checked in`;
+            setDashboardText('tile-total-employees', totalEmployees);
+            setDashboardText('tile-active-employees', `${activeEmployees} active`);
+            setDashboardText('tile-attendance-today', todayPresent);
+            setDashboardText('tile-attendance-meta', `${attendanceRate}% checked in`);
             const payrollTotalEmployees = document.getElementById('total-employees-payroll');
             if (payrollTotalEmployees) payrollTotalEmployees.textContent = activeEmployees;
 
@@ -7393,8 +7411,8 @@
             const pendingPayroll = Math.max(activeEmployees - processedThisMonth, 0);
 
             const payrollStatus = pendingPayroll > 0 ? 'Needs Review' : 'On Track';
-            document.getElementById('payroll-status').textContent = payrollStatus;
-            document.getElementById('payroll-status-meta').textContent = `Processed ${processedThisMonth} · Pending ${pendingPayroll}`;
+            setDashboardText('payroll-status', payrollStatus);
+            setDashboardText('payroll-status-meta', `Processed ${processedThisMonth} · Pending ${pendingPayroll}`);
 
             const processedPayrollElement = document.getElementById('processed-payroll');
             const pendingPayrollElement = document.getElementById('pending-payroll');
@@ -7809,18 +7827,29 @@
 
             function normalizePayrollRecord(id, data) {
                 const source = data || {};
+                const basic = Number(source.basic ?? source.basicSalary) || 0;
+                const hra = Number(source.hra) || 0;
+                const allowances = Number(source.allowances) || 0;
+                const gross = Number(source.gross) || Number(source.earnings) || (basic + hra + allowances);
+                const pf = Number(source.pf) || 0;
+                const esi = Number(source.esi) || 0;
+                const deductions = Number(source.deductions) || (pf + esi);
+                const net = Number(source.net) || (gross - deductions);
                 return {
                     id,
                     employeeId: String(source.employeeId || '').trim(),
                     month: typeof normalizePayrollMonth === 'function' ? normalizePayrollMonth(source.month) : String(source.month || ''),
-                    gross: Number(source.gross) || 0,
-                    net: Number(source.net) || 0,
-                    deductions: Number(source.deductions) || 0,
-                    pf: Number(source.pf) || 0,
-                    esi: Number(source.esi) || 0,
+                    basic,
+                    hra,
+                    allowances,
+                    gross,
+                    net,
+                    deductions,
+                    pf,
+                    esi,
                     workingDays: Number(source.workingDays) || 0,
                     presentDays: Number(source.presentDays) || 0,
-                    generatedAt: source.generatedAt || null,
+                    generatedAt: source.generatedAt || source.createdAt || null,
                     type: source.type || '',
                     raw: source
                 };
@@ -7835,9 +7864,9 @@
                 }
 
                 const { db, fx } = firestore;
-                const constraints = [fx.where('type', '==', 'summary')];
+                const constraints = [];
                 if (month) {
-                    constraints.push(fx.where('month', '==', month));
+                    constraints.push(fx.where('month', '==', normalizePayrollMonth(month)));
                 }
 
                 const payrollQuery = fx.query(fx.collection(db, 'users', currentUserId, PAYROLL_COLLECTION), ...constraints);
@@ -8247,7 +8276,7 @@
                 }
 
                 const { db, fx } = firestore;
-                const complianceQuery = fx.query(fx.collection(db, 'users', currentUserId, PAYROLL_COLLECTION), fx.where('type', '==', 'summary'));
+                const complianceQuery = fx.query(fx.collection(db, 'users', currentUserId, PAYROLL_COLLECTION));
                 state.unsubscribe = fx.onSnapshot(complianceQuery, (snapshot) => {
                     const changedRecords = [];
                     let requiresFullRefresh = false;
@@ -8463,12 +8492,15 @@
                 period,
                 paymentDate,
                 paymentMethod,
+                basic: basicSalary,
                 basicSalary,
+                hra: parseFloat(document.getElementById('hra').value) || 0,
                 allowances,
                 gross,
                 net,
                 deductions,
                 pf,
+                esi: parseFloat(document.getElementById('esi').value) || 0,
                 workingDays,
                 presentDays,
                 type: 'summary',
@@ -9328,18 +9360,15 @@ Employees: ${employeeSummary}`);
             }
 
             try {
-                const { getDocs, collection, query, orderBy } = window.firestoreFunctions;
-                const payrollQuery = query(
-                    getUserCollectionRef('payrollRecords'),
-                    orderBy('generatedAt', 'desc')
-                );
-                const snapshot = await getDocs(payrollQuery);
+                const { getDocs } = window.firestoreFunctions;
+                const snapshot = await getDocs(getUserCollectionRef('payrollRecords'));
                 const records = snapshot.docs
-                    .map(docSnap => ({
-                        id: docSnap.id,
-                        ...docSnap.data()
-                    }))
-                    .filter(record => record.type === 'summary');
+                    .map(docSnap => normalizePayrollRecord(docSnap.id, docSnap.data()))
+                    .sort((a, b) => {
+                        const aDate = new Date(a.generatedAt || 0).getTime();
+                        const bDate = new Date(b.generatedAt || 0).getTime();
+                        return bDate - aDate;
+                    });
 
                 payrollRecords = records;
                 localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
