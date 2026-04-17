@@ -5244,8 +5244,23 @@
                                 month: normalizePayrollMonth(data.month)
                             };
                         });
-                        const recordDocs = firebasePayroll.filter(doc => doc.type !== 'run');
+                        const recordDocs = firebasePayroll
+                            .filter(doc => doc.type !== 'run')
+                            .map(doc => normalizePayrollSourceRecord(doc));
                         const runDocs = firebasePayroll.filter(doc => doc.type === 'run');
+                        const runDerivedRecords = runDocs.flatMap((runDoc) => {
+                            const runMonth = normalizePayrollMonth(runDoc.month || `${runDoc.year || ''}-${runDoc.month || ''}`);
+                            const runItems = Array.isArray(runDoc.records)
+                                ? runDoc.records
+                                : Array.isArray(runDoc.payrollData)
+                                    ? runDoc.payrollData
+                                    : [];
+                            return runItems.map((item, idx) => normalizePayrollSourceRecord(item, {
+                                id: `${runDoc.id}_record_${idx}`,
+                                month: runMonth
+                            }));
+                        });
+                        const mergedRecords = recordDocs.length > 0 ? recordDocs : runDerivedRecords;
 
                         if (snapshot.empty) {
                             payrollRecords = [];
@@ -5257,7 +5272,7 @@
                             updatePayrollSummary();
                             requestDashboardRefresh('payroll');
                         } else {
-                            payrollRecords = recordDocs;
+                            payrollRecords = mergedRecords.filter(record => record.employeeId && record.month);
                             payrollRuns = runDocs;
                             window.payroll = [...payrollRecords];
                             localStorage.setItem('payrollRecords', JSON.stringify(payrollRecords));
@@ -5281,7 +5296,7 @@
                         if (window.ComplianceService) {
                             window.ComplianceService.isScanning = false;
                         }
-                        if (window.ComplianceService && window.payroll.length > 0 && typeof window.ComplianceService.runPayrollRules === "function") {
+                        if (window.ComplianceService && window.payroll.length > 0 && typeof window.ComplianceService.runPayrollRules === 'function') {
                             window.ComplianceService.runPayrollRules({
                                 employees: window.employees || [],
                                 payroll: window.payroll,
@@ -5770,9 +5785,32 @@
 
         function normalizePayrollMonth(month) {
             const normalized = String(month || '').trim();
-            if (!normalized || !normalized.includes('-')) return normalized;
+            if (!normalized) return '';
             const [year, m] = normalized.split('-');
+            if (!year || !m) return normalized;
             return `${year}-${String(m).padStart(2, '0')}`;
+        }
+
+        function normalizePayrollSourceRecord(source = {}, fallback = {}) {
+            const safeSource = source || {};
+            const safeFallback = fallback || {};
+            const employeeId = String(safeSource.employeeId || safeFallback.employeeId || '').trim();
+            const month = normalizePayrollMonth(safeSource.month || safeFallback.month || '');
+            const basic = Number(safeSource.basic ?? safeSource.basicSalary ?? safeFallback.basic ?? safeFallback.basicSalary) || 0;
+            const pf = Number(safeSource.pf ?? safeFallback.pf) || 0;
+            const esi = Number(safeSource.esi ?? safeFallback.esi) || 0;
+            const net = Number(safeSource.net ?? safeFallback.net) || 0;
+
+            return {
+                ...safeFallback,
+                ...safeSource,
+                employeeId,
+                month,
+                basic,
+                pf,
+                esi,
+                net
+            };
         }
 
         function showEmployeeForm(editingId = '') {
@@ -8450,14 +8488,14 @@
             try {
                 const { addDoc, collection, serverTimestamp } = window.firestoreFunctions;
                 const payrollDate = paymentDate ? new Date(paymentDate) : new Date();
-                const selectedMonth = payrollDate.toLocaleString('default', { month: 'long' });
                 const selectedYear = payrollDate.getFullYear();
+                const payrollMonth = normalizePayrollMonth(`${selectedYear}-${payrollDate.getMonth() + 1}`);
                 const employeeCount = records.length;
                 const totalPayout = records.reduce((sum, record) => sum + (Number(record.net) || 0), 0);
 
-                console.log('[Payroll] Run write start.', { month: selectedMonth, year: selectedYear, employeeCount });
+                console.log('[Payroll] Run write start.', { month: payrollMonth, year: selectedYear, employeeCount });
                 const docRef = await addDoc(getUserCollectionRef(PAYROLL_COLLECTION), {
-                    month: selectedMonth,
+                    month: payrollMonth,
                     year: selectedYear,
                     employeeCount,
                     totalPayout,
