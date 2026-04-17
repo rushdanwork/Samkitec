@@ -242,25 +242,25 @@ export const runComplianceDeepScan = onCall(async (request) => {
 });
 
 export const finalizePayroll = onCall(async (request) => {
-  const userId = request.auth?.uid;
-  if (!userId) {
+  const uid = request.auth?.uid;
+  console.log("finalizePayroll started", uid);
+
+  if (!uid) {
     throw new Error("unauthenticated");
   }
 
   const month = toPayrollMonth(request.data?.month);
   const year = month.slice(0, 4);
   const monthNum = month.slice(5, 7);
-  const employeesRef = db.collection("users").doc(userId).collection("employees");
-  const payrollRecordsRef = db.collection("users").doc(userId).collection("payrollRecords");
-  const payrollRunsRef = db.collection("users").doc(userId).collection("payrollRuns");
-  const employeesSnap = await employeesRef.get();
+  const employeesSnapshot = await db.collection("users").doc(uid).collection("employees").get();
+  const employees = employeesSnapshot.docs.map((doc) => ({ employeeId: doc.id, ...doc.data() }));
+  console.log("Employees found:", employees.length);
 
   const batch = db.batch();
   const records = [];
 
-  employeesSnap.forEach((employeeDoc) => {
-    const employee = employeeDoc.data() || {};
-    const employeeId = employeeDoc.id;
+  employees.forEach((employee) => {
+    const employeeId = employee.employeeId;
     const basic = round2(employee.basic ?? employee.basicSalary ?? 0);
     const hra = round2(employee.hra ?? basic * 0.4);
     const allowances = round2(employee.allowances ?? 0);
@@ -279,10 +279,11 @@ export const finalizePayroll = onCall(async (request) => {
       pf,
       esi,
       net,
-      createdAt: new Date(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     };
     records.push(record);
-    batch.set(payrollRecordsRef.doc(`${employeeId}_${month}`), record, { merge: true });
+    const ref = db.collection("users").doc(uid).collection("payrollRecords").doc(`${employeeId}_${month}`);
+    batch.set(ref, record, { merge: true });
   });
 
   const runId = `${month}_${Date.now()}`;
@@ -296,10 +297,11 @@ export const finalizePayroll = onCall(async (request) => {
     employeeCount: records.length,
     totalPayout: round2(records.reduce((sum, item) => sum + toNumber(item.net), 0)),
   };
+  const payrollRunsRef = db.collection("users").doc(uid).collection("payrollRuns");
   batch.set(payrollRunsRef.doc(runId), runPayload, { merge: false });
   await batch.commit();
 
-  return { runId, run: runPayload, records };
+  return { success: true, count: employees.length, runId, run: runPayload, records };
 });
 
 export const scheduledComplianceDeepScan = onSchedule(
