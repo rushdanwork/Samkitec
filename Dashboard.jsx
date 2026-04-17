@@ -14,6 +14,13 @@ const PAYROLL_RECORDS_COLLECTION = 'payrollRecords';
 const ATTENDANCE_COLLECTION = 'attendanceRecords';
 const EMPLOYEES_COLLECTION = 'employees';
 const normalizeDateKey = (date = new Date()) => date.toISOString().split('T')[0];
+const normalizePayrollMonth = (month) => {
+  const monthValue = String(month || '').trim();
+  if (!monthValue.includes('-')) return monthValue;
+  const [year, m] = monthValue.split('-');
+  return `${year}-${String(m).padStart(2, '0')}`;
+};
+const isNormalizedPayrollMonth = (month) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(month || '').trim());
 
 const parseTimestamp = (value) => {
   if (!value) return null;
@@ -24,6 +31,7 @@ const parseTimestamp = (value) => {
 
 export default function Dashboard() {
   const selectedMonth = new Date().toISOString().slice(0, 7);
+  const normalizedMonth = normalizePayrollMonth(selectedMonth);
   const [payrollRuns, setPayrollRuns] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState({});
   const [employees, setEmployees] = useState([]);
@@ -62,7 +70,7 @@ export default function Dashboard() {
         onSnapshot(
           query(
             getUserScopedCollectionRef(PAYROLL_RUNS_COLLECTION, userId),
-            where('month', '==', selectedMonth),
+            where('month', '==', normalizedMonth),
             orderBy('generatedAt', 'desc')
           ),
           (snapshot) => {
@@ -76,11 +84,16 @@ export default function Dashboard() {
         onSnapshot(
           query(
             getUserScopedCollectionRef(PAYROLL_RECORDS_COLLECTION, userId),
-            where('month', '==', selectedMonth),
+            where('month', '==', normalizedMonth),
             orderBy('generatedAt', 'desc')
           ),
           (snapshot) => {
             runsFromLegacyCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+            runsFromLegacyCollection.forEach((run) => {
+              if (run?.month && !isNormalizedPayrollMonth(run.month)) {
+                console.warn('[Payroll] Found non-normalized month in payrollRecords:', run.month, run.id);
+              }
+            });
             syncRuns();
           }
         )
@@ -119,7 +132,7 @@ export default function Dashboard() {
       unsubscribeAuth();
       dataUnsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, [selectedMonth]);
+  }, [normalizedMonth]);
 
   const metrics = useMemo(() => {
     const totalEmployees = employees.length;

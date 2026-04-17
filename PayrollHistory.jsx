@@ -6,6 +6,13 @@ import Header from './components/Header.jsx';
 
 const PAYROLL_RUNS_COLLECTION = 'payrollRuns';
 const PAYROLL_RECORDS_COLLECTION = 'payrollRecords';
+const normalizePayrollMonth = (month) => {
+  const monthValue = String(month || '').trim();
+  if (!monthValue.includes('-')) return monthValue;
+  const [year, m] = monthValue.split('-');
+  return `${year}-${String(m).padStart(2, '0')}`;
+};
+const isNormalizedPayrollMonth = (month) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(month || '').trim());
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value || 0);
@@ -21,6 +28,7 @@ const formatDate = (value) => {
 
 export default function PayrollHistory() {
   const selectedMonth = new Date().toISOString().slice(0, 7);
+  const normalizedMonth = normalizePayrollMonth(selectedMonth);
   const [payrollRuns, setPayrollRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -52,7 +60,7 @@ export default function PayrollHistory() {
         onSnapshot(
           query(
             getUserScopedCollectionRef(PAYROLL_RUNS_COLLECTION, userId),
-            where('month', '==', selectedMonth),
+            where('month', '==', normalizedMonth),
             orderBy('generatedAt', 'desc')
           ),
           (snapshot) => {
@@ -70,11 +78,16 @@ export default function PayrollHistory() {
         onSnapshot(
           query(
             getUserScopedCollectionRef(PAYROLL_RECORDS_COLLECTION, userId),
-            where('month', '==', selectedMonth),
+            where('month', '==', normalizedMonth),
             orderBy('generatedAt', 'desc')
           ),
           (snapshot) => {
             runsFromLegacyCollection = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+            runsFromLegacyCollection.forEach((run) => {
+              if (run?.month && !isNormalizedPayrollMonth(run.month)) {
+                console.warn('[Payroll] Found non-normalized month in payrollRecords:', run.month, run.id);
+              }
+            });
             syncRuns();
           },
           () => {
@@ -88,7 +101,7 @@ export default function PayrollHistory() {
       unsubscribeAuth();
       dataUnsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, [selectedMonth]);
+  }, [normalizedMonth]);
 
   if (loading) {
     return <div className="payroll-history__empty">Loading payroll history…</div>;
