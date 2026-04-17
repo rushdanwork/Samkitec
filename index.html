@@ -5032,6 +5032,32 @@
             await Promise.all(listeners);
         }
 
+        function tryRunCompliance() {
+            const empReady = Array.isArray(window.employees) && window.employees.length > 0;
+            const payReady = Array.isArray(window.payroll) && window.payroll.length > 0;
+            const attReady = Array.isArray(window.attendance) && window.attendance.length > 0;
+
+            console.log("🧪 Compliance readiness:", {
+                employees: window.employees?.length,
+                payroll: window.payroll?.length,
+                attendance: window.attendance?.length
+            });
+
+            if (empReady && payReady && attReady) {
+                console.log("🔥 All data ready → running compliance");
+                if (window.ComplianceService) {
+                    window.ComplianceService.isScanning = false;
+                    window.ComplianceService.runPayrollRules({
+                        employees: window.employees,
+                        payroll: window.payroll,
+                        attendance: window.attendance
+                    });
+                }
+            } else {
+                console.log("⏳ Waiting for full dataset...");
+            }
+        }
+
         function startEmployeesListener() {
             if (!currentUserId || !ensureFirebaseReady('employees')) return Promise.resolve(false);
 
@@ -5066,6 +5092,7 @@
                             console.log('[ComplianceRisk] refresh after employee snapshot');
                             updateComplianceRiskUI();
                         }
+                        tryRunCompliance();
                         requestDashboardRefresh('employees');
 
                         updateSyncStatus('employees', 'synced');
@@ -5152,7 +5179,7 @@
                         });
 
                         attendanceRecords = snapshot.empty ? {} : firebaseAttendance;
-                        window.attendance = [{ ...attendanceRecords }];
+                        window.attendance = Object.keys(attendanceRecords).length > 0 ? [{ ...attendanceRecords }] : [];
                         localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
                         console.log('[Attendance] State updated.', {
                             dates: Object.keys(attendanceRecords).length
@@ -5165,6 +5192,7 @@
                         updateAttendanceSummary();
                         updateAttendanceSaveButtonState();
                         renderAttendanceHeatmap();
+                        tryRunCompliance();
                         requestDashboardRefresh('attendance');
 
                         updateSyncStatus('attendance', 'synced');
@@ -5292,17 +5320,7 @@
                         }
 
                         console.log('Payroll data:', window.payroll);
-
-                        if (window.ComplianceService) {
-                            window.ComplianceService.isScanning = false;
-                        }
-                        if (window.ComplianceService && window.payroll.length > 0 && typeof window.ComplianceService.runPayrollRules === 'function') {
-                            window.ComplianceService.runPayrollRules({
-                                employees: window.employees || [],
-                                payroll: window.payroll,
-                                attendance: window.attendance || []
-                            });
-                        }
+                        tryRunCompliance();
 
                         updateSyncStatus('payroll', 'synced');
                         markInitialSnapshot('payroll');
