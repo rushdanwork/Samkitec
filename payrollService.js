@@ -39,9 +39,11 @@ export const listenPayrollRuns = (month, onSuccess, onError, userId) => {
 };
 
 export const finalizePayrollRun = async ({ month }) => {
+  console.log('Calling finalizePayroll...');
   const callable = httpsCallable(getFunctionsService(), 'finalizePayroll');
-  const response = await callable({ month });
-  return response.data;
+  const result = await callable({ month });
+  console.log('Function result:', result);
+  return result.data;
 };
 
 export const listenPayrollRecordsForMonth = (month, onSuccess, onError, userId) =>
