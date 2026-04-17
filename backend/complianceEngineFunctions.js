@@ -243,7 +243,8 @@ export const runComplianceDeepScan = onCall(async (request) => {
 
 export const finalizePayroll = onCall(async (request) => {
   const uid = request.auth?.uid;
-  console.log("finalizePayroll started", uid);
+  console.log("finalizePayroll triggered");
+  console.log("UID:", uid);
 
   if (!uid) {
     throw new Error("unauthenticated");
