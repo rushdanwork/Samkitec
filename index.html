@@ -7710,7 +7710,7 @@
         // ComplianceService module
         const ComplianceService = (() => {
             const PAYROLL_COLLECTION = 'payrollRecords';
-            const COMPLIANCE_EVENTS_COLLECTION = 'complianceEvents';
+            const COMPLIANCE_RESULTS_COLLECTION = 'complianceResults';
             const SEVERITY_WEIGHTS = Object.freeze({ high: 30, medium: 15, low: 5 });
             const RISK_LEVELS = Object.freeze([
                 { label: 'CRITICAL', min: 90 },
@@ -8024,16 +8024,23 @@
                     log('warn', 'Skipping compliance persistence because Firebase is not ready.', { scanId });
                     return;
                 }
+                if (!currentUserId) {
+                    throw new Error('Missing authenticated user context for compliance persistence.');
+                }
 
                 const { db, fx } = firestore;
                 const batch = fx.writeBatch(db);
-                const summaryRef = fx.doc(db, COMPLIANCE_EVENTS_COLLECTION, `summary_${scanId}`);
+                const complianceResultsCollectionRef = fx.collection(db, 'users', currentUserId, COMPLIANCE_RESULTS_COLLECTION);
+                const summaryRef = fx.doc(complianceResultsCollectionRef, `summary_${scanId}`);
+                const createdAt = fx.serverTimestamp();
 
                 employeeResults.forEach((result) => {
-                    const docRef = fx.doc(db, COMPLIANCE_EVENTS_COLLECTION, `${scanId}_${result.employeeId}_${result.month}`);
+                    const docRef = fx.doc(complianceResultsCollectionRef, `${scanId}_${result.employeeId}_${result.month}`);
                     batch.set(docRef, {
                         employeeId: result.employeeId,
                         month: result.month,
+                        issues: result.violations,
+                        createdAt,
                         violations: result.violations,
                         riskScore: result.riskScore,
                         riskLevel: result.riskLevel,
@@ -8045,6 +8052,8 @@
                 batch.set(summaryRef, {
                     employeeId: '__summary__',
                     month: summary.month || 'ALL',
+                    issues: [],
+                    createdAt,
                     violations: [],
                     riskScore: summary.complianceScore,
                     riskLevel: summary.systemRiskLevel,
