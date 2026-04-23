@@ -45,123 +45,135 @@
         
         /* Login Page Styles */
         .login-container {
-            font-family: 'Arial', sans-serif;
-            background-color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            background: #F8FAFC;
             margin: 0;
-            padding: 0;
+            padding: 24px;
             height: 100vh;
+            min-height: 100vh;
             display: flex;
-            justify-content: center;
             align-items: center;
-            color: #333;
+            justify-content: center;
         }
         
         .login-box {
-            background-color: #2ecc71;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            padding: 40px;
-            width: 400px;
-            max-width: 90%;
-            transition: all 0.3s ease;
+            width: 360px;
+            max-width: 100%;
+            background: #FFFFFF;
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
         }
 
-        img.login-logo {
-            height: 60px !important;
-            width: auto !important;
+        .login-box * {
+            transition: all 0.2s ease;
+        }
+
+        .login-logo {
+            height: 60px;
+            width: auto;
             object-fit: contain;
             display: block;
-            margin: 0 auto 18px;
-            filter: drop-shadow(0 6px 12px rgba(0,0,0,0.1));
-        }
-        
-        .login-box h2 {
-            text-align: center;
-            margin-bottom: 30px;
-            color: white;
-            font-size: 24px;
-            position: relative;
+            margin: 0 auto 12px;
         }
         
         .login-title {
             text-align: center;
-            font-size: 24px;
-            font-weight: bold;
-            color: white;
             margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-            width: 100%;
             display: flex;
             flex-direction: column;
-            align-items: center;
+            gap: 4px;
+        }
+
+        .login-title .brand {
+            font-size: 22px;
+            font-weight: 600;
+            line-height: 1.2;
+            color: #0F172A;
+        }
+
+        .login-title .tagline {
+            font-size: 13px;
+            color: #64748B;
+            line-height: 1.4;
+        }
+
+        .login-form-title {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #334155;
         }
         
-        .form-group label {
+        #login-form .form-group,
+        #signup-form .form-group {
+            margin-bottom: 16px;
+            width: 100%;
+        }
+        
+        #login-form .form-group label,
+        #signup-form .form-group label {
             display: block;
             margin-bottom: 8px;
+            font-size: 13px;
             font-weight: 500;
-            width: 100%;
-            max-width: 300px;
-            text-align: left;
-            color: white;
+            color: #475569;
         }
         
-        .form-group input {
+        #login-form .form-group input,
+        #signup-form .form-group input {
             width: 100%;
-            max-width: 300px;
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 16px;
-            transition: border 0.3s;
-            box-sizing: border-box;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #E2E8F0;
+            font-size: 14px;
+            color: #0F172A;
+            background: #FFFFFF;
         }
         
-        .form-group input:focus {
-            border-color: #27ae60;
+        #login-form .form-group input:focus,
+        #signup-form .form-group input:focus {
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
             outline: none;
         }
         
-        .form-group button {
+        #login-form .form-group button,
+        #signup-form .form-group button {
             width: 100%;
-            max-width: 300px;
-            padding: 12px;
-            background-color: #27ae60;
+            padding: 10px;
+            background: #1E3A8A;
+            color: #FFFFFF;
+            border-radius: 8px;
             border: none;
-            border-radius: 4px;
-            color: white;
-            font-size: 16px;
-            font-weight: 600;
+            font-size: 14px;
+            font-weight: 500;
             cursor: pointer;
-            transition: background-color 0.3s;
-            margin-top: 10px;
+            margin-top: 4px;
         }
         
-        .form-group button:hover {
-            background-color: #219653;
+        #login-form .form-group button:hover,
+        #signup-form .form-group button:hover {
+            background: #1D4ED8;
         }
         
         .toggle-form {
             text-align: center;
-            margin-top: 20px;
-            font-size: 14px;
-            width: 100%;
-            color: white;
+            margin-top: 8px;
+            font-size: 13px;
+            color: #64748B;
         }
         
         .toggle-form a {
-            color: white;
+            color: #1D4ED8;
             text-decoration: none;
             font-weight: 600;
             cursor: pointer;
         }
         
         .toggle-form a:hover {
+            color: #1E3A8A;
             text-decoration: underline;
         }
         
@@ -170,21 +182,20 @@
         }
         
         .error-message {
-            color: #e74c3c;
+            color: #DC2626;
             font-size: 14px;
             margin-top: 5px;
             display: none;
             width: 100%;
-            max-width: 300px;
             text-align: left;
         }
 
         .connection-panel {
-            margin-top: 25px;
-            padding: 15px;
+            margin-top: 20px;
+            padding: 14px;
             border-radius: 8px;
-            background-color: rgba(0, 0, 0, 0.1);
-            color: white;
+            background-color: #F8FAFC;
+            color: #0F172A;
         }
 
         .firebase-status {
@@ -193,8 +204,8 @@
             gap: 12px;
             padding: 12px;
             border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            background-color: rgba(0, 0, 0, 0.15);
+            border: 1px solid #E2E8F0;
+            background-color: #FFFFFF;
             transition: var(--transition);
         }
 
@@ -244,17 +255,17 @@
             max-width: 300px;
             padding: 10px;
             margin-top: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.4);
+            border: 1px solid #CBD5E1;
             border-radius: 6px;
-            background: transparent;
-            color: white;
+            background: #FFFFFF;
+            color: #334155;
             font-weight: 600;
             cursor: pointer;
             transition: background 0.3s ease;
         }
 
         .connection-retry-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
+            background: #F1F5F9;
         }
 
         .connection-hint {
@@ -285,6 +296,17 @@
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 16px;
+            }
+
+            .login-box {
+                width: 100%;
+                padding: 24px 20px;
+            }
         }
         
         /* Sidebar Styles */
@@ -2918,11 +2940,12 @@
         <div class="login-box">
             <!-- Login Form -->
             <div id="login-form">
-                <div style="display:flex; justify-content:center;">
-  <img src="assets/logo_eye.png" style="height:60px;">
-</div>
-                <div class="login-title">Orakis — Smart Payroll & Compliance</div>
-                <h2>Login</h2>
+                <img src="assets/logo_eye.png" alt="Orakis logo" class="login-logo">
+                <div class="login-title">
+                    <span class="brand">Orakis</span>
+                    <span class="tagline">Smart Payroll & Compliance</span>
+                </div>
+                <div class="login-form-title">Welcome back</div>
                 <div class="form-group">
                     <label for="login-email">Email</label>
                     <input type="email" id="login-email" name="loginEmail" placeholder="Enter your email">
@@ -2943,9 +2966,12 @@
             
             <!-- Signup Form -->
             <div id="signup-form" class="hidden">
-                <img src="./assets/Abstract eye logo with vibrant accents.png" alt="eye logo" class="login-logo">
-                <div class="login-title">Samkitec Resources</div>
-                <h2>Sign Up</h2>
+                <img src="assets/logo_eye.png" alt="Orakis logo" class="login-logo">
+                <div class="login-title">
+                    <span class="brand">Orakis</span>
+                    <span class="tagline">Smart Payroll & Compliance</span>
+                </div>
+                <div class="login-form-title">Create your account</div>
                 <div class="form-group">
                     <label for="signup-email">Email</label>
                     <input type="email" id="signup-email" name="signupEmail" placeholder="Enter your email">
