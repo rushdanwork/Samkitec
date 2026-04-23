@@ -164,6 +164,8 @@ export const listenComplianceSummary = (onSuccess, onError, userId) =>
 const DIAGNOSTICS_COLLECTION = 'connectivityDiagnostics';
 const REALTIME_COLLECTION = 'attendanceRecords';
 const EXPENSES_COLLECTION = 'expenses';
+const EMPLOYEES_COLLECTION = 'employees';
+const PAYROLL_COLLECTION = 'payrollRecords';
 
 export const runTestWriteRead = async (testDocId) => {
   const auth = getAuthService();
@@ -211,6 +213,117 @@ export const testRealtimeListener = async () => {
   });
 
   return Promise.race([probePromise, timeoutPromise]);
+};
+
+export const injectDemoDataWithErrors = async (uid) => {
+  const userId = getRequiredUserId(uid);
+
+  const employeesRef = getUserScopedCollectionRef(EMPLOYEES_COLLECTION, userId);
+  const existingEmployeesSnapshot = await getDocs(employeesRef);
+  if (!existingEmployeesSnapshot.empty) {
+    return {
+      inserted: false,
+      reason: 'EMPLOYEES_ALREADY_EXIST',
+      message: 'Skipped demo data injection because employees collection is not empty.',
+    };
+  }
+
+  const month = '2026-04';
+  const employees = [
+    { employeeId: 'EMP001', name: 'Rahul Sharma', basic: 30000, hra: 15000, allowances: 5000 },
+    { employeeId: 'EMP002', name: 'Priya Verma', basic: 28000, hra: 14000, allowances: 4000 },
+    { employeeId: 'EMP003', name: 'Amit Khan', basic: 35000, hra: 17000, allowances: 6000 },
+    { employeeId: 'EMP004', name: 'Neha Iyer', basic: 22000, hra: 11000, allowances: 3000 },
+    { employeeId: 'EMP005', name: 'Vikram Singh', basic: 40000, hra: 20000, allowances: 8000 },
+    { employeeId: 'EMP006', name: 'Sara Ali', basic: 18000, hra: 9000, allowances: 2000 },
+    { employeeId: 'EMP007', name: 'Rohan Das', basic: 26000, hra: 13000, allowances: 3500 },
+    { employeeId: 'EMP008', name: 'Anjali Mehta', basic: 32000, hra: 16000, allowances: 5500 },
+    { employeeId: 'EMP009', name: 'Karan Patel', basic: 15000, hra: 7000, allowances: 1500 },
+    { employeeId: 'EMP010', name: 'Deepak Roy', basic: 45000, hra: 22000, allowances: 9000 },
+  ];
+
+  const attendance = {
+    month,
+    records: {
+      EMP001: 26,
+      EMP002: 25,
+      EMP003: 27,
+      EMP004: 32,
+      EMP005: -2,
+      EMP006: 20,
+      EMP007: 0,
+      EMP008: 26,
+      EMP009: 15,
+      EMP010: 28,
+    },
+  };
+
+  const payroll = [
+    { employeeId: 'EMP001', month, basic: 30000, hra: 15000, allowances: 5000, pf: 3600, esi: 0, net: 46400 },
+    { employeeId: 'EMP002', month, basic: 28000, hra: 14000, allowances: 4000, pf: 0, esi: 0, net: 46000 },
+    { employeeId: 'EMP003', month, basic: 35000, hra: 17000, allowances: 6000, pf: 1000, esi: 0, net: 57000 },
+    { employeeId: 'EMP004', month, basic: 22000, hra: 11000, allowances: 3000, pf: 2640, esi: 0, net: 40000 },
+    { employeeId: 'EMP005', month, basic: 40000, hra: 20000, allowances: 8000, pf: 4800, esi: 0, net: 63200 },
+    { employeeId: 'EMP006', month, basic: 18000, hra: 9000, allowances: 2000, pf: 2160, esi: 0, net: 26840 },
+    { employeeId: 'EMP007', month, basic: 26000, hra: 13000, allowances: 3500, pf: 3120, esi: 0, net: 50000 },
+    { employeeId: 'EMP008', month, basic: 32000, hra: 16000, allowances: 5500, pf: 3840, esi: 0, net: 49660 },
+    { employeeId: 'EMP009', month, basic: 15000, hra: 7000, allowances: 1500, pf: 0, esi: 0, net: 23500 },
+    { employeeId: 'EMP010', month, basic: 45000, hra: 22000, allowances: 9000, pf: 0, esi: 0, net: 90000 },
+  ];
+
+  const attendanceDayDocs = {};
+  const daysInMonth = 30;
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const dateKey = `2026-04-${String(day).padStart(2, '0')}`;
+    const dayRecords = {};
+    employees.forEach(({ employeeId }) => {
+      const presentDays = Number(attendance.records[employeeId] ?? 0);
+      const status = day <= presentDays ? 'present' : 'absent';
+      dayRecords[employeeId] = { status };
+    });
+    attendanceDayDocs[dateKey] = { records: dayRecords };
+  }
+
+  await Promise.all(
+    employees.map((employee) =>
+      setDoc(getUserScopedDocRef(EMPLOYEES_COLLECTION, employee.employeeId, userId), {
+        ...employee,
+        status: 'active',
+        pfApplicable: true,
+        esiApplicable: employee.basic <= 21000,
+        createdAt: getServerTimestamp(),
+      })
+    )
+  );
+
+  await Promise.all(
+    Object.entries(attendanceDayDocs).map(([dateKey, data]) =>
+      setDoc(getUserScopedDocRef(REALTIME_COLLECTION, dateKey, userId), data)
+    )
+  );
+
+  await setDoc(getUserScopedDocRef(REALTIME_COLLECTION, `${month}-summary`, userId), attendance, { merge: true });
+
+  await Promise.all(
+    payroll.map((record) => {
+      const gross = Number(record.basic) + Number(record.hra) + Number(record.allowances);
+      return setDoc(getUserScopedDocRef(PAYROLL_COLLECTION, `${record.employeeId}_${record.month}`, userId), {
+        ...record,
+        gross,
+        deductions: Number(record.pf) + Number(record.esi),
+        createdAt: getServerTimestamp(),
+      });
+    })
+  );
+
+  return {
+    inserted: true,
+    month,
+    employeesInserted: employees.length,
+    attendanceDocsInserted: Object.keys(attendanceDayDocs).length + 1,
+    payrollRecordsInserted: payroll.length,
+    expectedViolations: ['PF_MISSING', 'PF_INCORRECT', 'NET_MISMATCH', 'ATTENDANCE_INVALID', 'ESI_MISSING'],
+  };
 };
 
 export const listenExpenseRecords = (onSuccess, onError) => {
